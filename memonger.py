@@ -27,6 +27,7 @@ def is_param(name):
 
 
 def make_mirror_plan(sym, threshold, plan_info=None, **kwargs):
+    print("Threshold ", threshold)
     """Memory allocation planner with a given threshold.
 
     The user can pass in a network configuration,
@@ -112,7 +113,7 @@ def get_cost(sym, type_dict=None, **kwargs):
     sym : Symbolic Variable
 
     """
-    texec = sym.simple_bind(ctx=mx.gpu(),
+    texec = sym.simple_bind(ctx=mx.cpu(),
                             grad_req='write',
                             type_dict=type_dict,
                             **kwargs)
