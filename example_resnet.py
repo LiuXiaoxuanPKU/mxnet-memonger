@@ -92,7 +92,7 @@ def get_train_iter(batch_size):
     return mx.io.ImageRecordIter(
         path_imgrec='./tiny-imagenet_train.rec',
         path_imgidx='./tiny-imagenet_train.idx',
-        preprocess_threads=4,
+        preprocess_threads=36,
         shuffle=True,
         batch_size=batch_size,
 
@@ -117,11 +117,11 @@ def get_train_iter(batch_size):
 
 def get_model(batch_size, layers, checkpoint=0):
     net = get_symbol(layers)
-    dshape = (batch_size, 3, 64, 64)
+    dshape = (batch_size, 3, 38, 38)
     old_cost = memonger.get_cost(net, data=dshape)
     print('Old feature map cost=%d MB' % old_cost)
     if checkpoint > 0:
-      #  net = memonger.search_plan(net, data=dshape)
+        #net = memonger.search_plan(net, data=dshape)
         net = memonger.make_mirror_plan(net, checkpoint, plan_info={}, data=dshape)
         new_cost = memonger.get_cost(net, data=dshape)
         print('New feature map cost=%d MB' % new_cost)
@@ -140,7 +140,6 @@ if __name__ == "__main__":
     num_threads = str(sys.argv[3])
 
     layers = [3, 24, 36, 3]
-    os.environ["MXNET_CPU_WORKER_NTHREADS"] = "4"
     mod = get_model(batch_size=batch_size, layers=layers, checkpoint=threshold)
 
     # allocate memory given the input data and label shapes
@@ -187,7 +186,7 @@ if __name__ == "__main__":
         end = time.time()
         time_per_img = (end - start) * 1.0 / batch_size / repeat_times
         print("batch\tthreshold\tthread number\ttime per image\tmemory (GB)")
-        print("%d\t%d\t%s\t%s\t%f" %(batch_size, threshold, os.environ["MXNET_CPU_WORKER_NTHREADS"], time_per_img,  cpuStats()))
+        print("%d\t%d\t%s\t%s\t%f" %(batch_size, threshold, os.environ["OMP_NUM_THREADS"], time_per_img,  cpuStats()))
         exit()
 
 #
