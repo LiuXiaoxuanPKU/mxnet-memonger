@@ -88,15 +88,15 @@ lighting_param = 0.1
 mean_rgb = [123.68, 116.779, 103.939]
 std_rgb = [58.393, 57.12, 57.375]
 
-def get_train_iter(batch_size):
+def get_train_iter(dshape):
     return mx.io.ImageRecordIter(
         path_imgrec='./tiny-imagenet_train.rec',
         path_imgidx='./tiny-imagenet_train.idx',
         preprocess_threads=4,
         shuffle=True,
-        batch_size=batch_size,
+        batch_size=dshape[0],
 
-        data_shape=(3, 38, 38),
+        data_shape=(dshape[1], dshape[2], dshape[3]),
         mean_r=mean_rgb[0],
         mean_g=mean_rgb[1],
         mean_b=mean_rgb[2],
@@ -115,16 +115,18 @@ def get_train_iter(batch_size):
         pca_noise=lighting_param,
     )
 
-def get_model(batch_size, layers, checkpoint=0):
+def get_model(dshape, layers, checkpoint=0):
     net = get_symbol(layers)
-    dshape = (batch_size, 3, 64, 64)
     old_cost = memonger.get_cost(net, data=dshape)
     print('Old feature map cost=%d MB' % old_cost)
     if checkpoint > 0:
       #  net = memonger.search_plan(net, data=dshape)
-        net = memonger.make_mirror_plan(net, checkpoint, plan_info={}, data=dshape)
+        plan_info = {}
+        net = memonger.make_mirror_plan(net, checkpoint, plan_info, data=dshape)
+        print(plan_info)
         new_cost = memonger.get_cost(net, data=dshape)
         print('New feature map cost=%d MB' % new_cost)
+        exit()
     mod = mx.mod.Module(symbol=net,
                         context=mx.cpu(),
                         data_names=['data'],
@@ -141,10 +143,11 @@ if __name__ == "__main__":
 
     layers = [3, 24, 36, 3]
     os.environ["MXNET_CPU_WORKER_NTHREADS"] = "4"
-    mod = get_model(batch_size=batch_size, layers=layers, checkpoint=threshold)
+    dshape = (batch_size, 3, 38, 38)
+    mod = get_model(dshape, layers=layers, checkpoint=threshold)
 
     # allocate memory given the input data and label shapes
-    train_data = get_train_iter(batch_size)
+    train_data = get_train_iter(dshape)
     mod.bind(data_shapes=train_data.provide_data, label_shapes=train_data.provide_label)
     # initialize parameters by uniform random numbers
     mod.init_params(initializer=mx.init.Uniform(scale=.1))
