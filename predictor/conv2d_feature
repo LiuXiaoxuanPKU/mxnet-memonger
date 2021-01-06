@@ -1,0 +1,2 @@
+batch_size,height,width,kernel_value,stride_value,pad_value,num_filter,train_time
+128,64,256,7,7,1,36,4.400032997131348
