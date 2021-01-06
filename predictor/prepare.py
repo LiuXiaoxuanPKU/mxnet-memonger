@@ -59,7 +59,7 @@ def generate_training_data(num_trails, file_name, name="conv2d"):
                 batch_size = batches[random.randint(0, len(batches) - 1)]
                 height = heights[random.randint(0, len(heights) - 1)]
                 width = widths[random.randint(0, len(widths) - 1)]
-                if batch_size * height * width < 2 << 31:
+                if batch_size * height * width < (2 << 20):
                     break
 
             kernel_value = min(height, width)
@@ -155,7 +155,7 @@ def generate_training_data(num_trails, file_name, name="conv2d"):
         print("Exec time: %f" % (end - start))
 
         # 3. record to file, param1, param2, param3..., training time
-        with open(file_name, "w") as f:
+        with open(file_name, "a") as f:
             for key in params.keys():
                 f.write(key + ",")
             f.write("train_time\n")
@@ -183,10 +183,10 @@ def split(X, y):
     X_train, X_test, y_train, y_test = train_test_split(X, y,
                                                         test_size=0.33,
                                                         random_state=42)
-    return X_train, X_test, y_train, y_test
+    return X_train, y_train, X_test, y_test
 
 
-def train(x, y, name="linear"):
+def train(x, y, name="svm"):
     model = None
     if name == "svm":
         model = svm.SVC(kernel='linear')
@@ -207,7 +207,7 @@ if __name__ == "__main__":
     # mod = get_model(dshape, layers=layers, checkpoint=0)
     file_name = "conv2d_feature"
     num_trails = 100
-    generate_training_data(num_trails, file_name)
+    #generate_training_data(num_trails, file_name)
     feature_names, x, y = extract_features(file_name)
     train_x, train_y, test_x, test_y = split(x, y)
     model = train(train_x, train_y)
