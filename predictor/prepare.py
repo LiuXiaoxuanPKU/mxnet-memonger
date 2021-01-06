@@ -55,9 +55,13 @@ def generate_training_data(num_trails, file_name, name="conv2d"):
         # 1. generate the operator
             # conv2d
             channel = 1
-            batch_size = batches[random.randint(0, len(batches) - 1)]
-            height = heights[random.randint(0, len(heights) - 1)]
-            width = widths[random.randint(0, len(widths) - 1)]
+            while True:
+                batch_size = batches[random.randint(0, len(batches) - 1)]
+                height = heights[random.randint(0, len(heights) - 1)]
+                width = widths[random.randint(0, len(widths) - 1)]
+                if batch_size * height * width < 2 << 31:
+                    break
+
             kernel_value = min(height, width)
             while kernel_value >= min(height, width):
                 kernel_value = kernels[random.randint(0, len(kernels) - 1)]
@@ -90,59 +94,16 @@ def generate_training_data(num_trails, file_name, name="conv2d"):
             pred_loss = mx.sym.Group([mx.sym.BlockGrad(conv), loss])
 
             executor = pred_loss.simple_bind(ctx=device, data=(batch_size, channel, height, width), grad_req='write')
-            args = executor.arg_dict
-            grads = executor.grad_dict
-            aux_states = executor.aux_dict
-            outputs = dict(zip(conv.list_outputs(), executor.outputs))
+            # grads = executor.grad_dict
+            # aux_states = executor.aux_dict
+            # outputs = dict(zip(conv.list_outputs(), executor.outputs))
+            #
+            # # print("args %s" % args.keys())
+            # # print("grads %s" % grads.keys())
+            # # print("aux_states %s" % aux_states.keys())
+            # # print("outputs %s" % outputs.keys())
+            # # print("-" * 20)
 
-            # print("args %s" % args.keys())
-            # print("grads %s" % grads.keys())
-            # print("aux_states %s" % aux_states.keys())
-            # print("outputs %s" % outputs.keys())
-            # print("-" * 20)
-            args[name + '_weight'][:] = mx.random.uniform(-1, 1, args[name + '_weight'].shape)
-            args[name + '_bias'][:] = mx.random.uniform(-1, 1, args[name + '_bias'].shape)
-
-            inputs = []
-            labels = []
-            for _ in range(repeat_times):
-                data = mx.nd.random.uniform(0, 1,
-                                                shape=(batch_size, channel, height, width),
-                                                ctx=device, dtype='float32')
-                inputs.append(data)
-                args["data"][:] = data
-                executor.forward(is_train=False)
-                labels.append(executor.outputs[0])
-
-            args[name + '_weight'][:] = mx.random.uniform(-1, 1, args[name + '_weight'].shape)
-            args[name + '_bias'][:] = mx.random.uniform(-1, 1, args[name + '_bias'].shape)
-
-            start = time.time()
-            # 2. run the operator multiple times, get the training time
-            keys = conv.list_arguments()
-            ex = pred_loss.simple_bind(ctx=device, data=(batch_size, channel, height, width))
-            for i in range(repeat_times):
-                ex.forward(is_train=True, data=inputs[i], label=labels[i])
-                ex.backward()
-                for key in keys:
-                    SGD(key, ex.arg_dict[key], ex.grad_dict[key], grad_norm=batch_size)
-
-                if DEBUG:
-                    loss = (ex.outputs[0] - labels[i]).asnumpy()
-                    print("Loss", i, loss.sum())
-
-            mx.nd.waitall()
-            end = time.time()
-            print("Exec time: %f" % (end - start))
-
-            # 3. record to file, param1, param2, param3..., training time
-            with open(file_name, "w") as f:
-                for key in params.keys():
-                    f.write(key + ",")
-                f.write("train_time\n")
-                for key in params.keys():
-                    f.write(str(params[key]) + ",")
-                f.write(str(end - start))
 
         elif type == "pooling":
             pass
@@ -151,6 +112,56 @@ def generate_training_data(num_trails, file_name, name="conv2d"):
             pass
             # relu
         # fully connected
+
+
+        dshape = (batch_size, channel, height, width)
+        args = executor.arg_dict
+        operator = conv
+        loss = pred_loss
+
+        # 1. Generate inputs, outputs
+        inputs = []
+        labels = []
+        args[name + '_weight'][:] = mx.random.uniform(-1, 1, args[name + '_weight'].shape)
+        args[name + '_bias'][:] = mx.random.uniform(-1, 1, args[name + '_bias'].shape)
+        for _ in range(repeat_times):
+            data = mx.nd.random.uniform(0, 1,
+                                        shape=dshape,
+                                        ctx=device, dtype='float32')
+            inputs.append(data)
+            args["data"][:] = data
+            executor.forward(is_train=False)
+            labels.append(executor.outputs[0])
+
+        args[name + '_weight'][:] = mx.random.uniform(-1, 1, args[name + '_weight'].shape)
+        args[name + '_bias'][:] = mx.random.uniform(-1, 1, args[name + '_bias'].shape)
+
+        # 2. run the operator multiple times, get the training time
+        start = time.time()
+        keys = operator.list_arguments()
+        ex = loss.simple_bind(ctx=device, data=(batch_size, channel, height, width))
+        for i in range(repeat_times):
+            ex.forward(is_train=True, data=inputs[i], label=labels[i])
+            ex.backward()
+            for key in keys:
+                SGD(key, ex.arg_dict[key], ex.grad_dict[key], grad_norm=batch_size)
+
+            if DEBUG:
+                loss = (ex.outputs[0] - labels[i]).asnumpy()
+                print("Loss", i, loss.sum())
+
+        mx.nd.waitall()
+        end = time.time()
+        print("Exec time: %f" % (end - start))
+
+        # 3. record to file, param1, param2, param3..., training time
+        with open(file_name, "w") as f:
+            for key in params.keys():
+                f.write(key + ",")
+            f.write("train_time\n")
+            for key in params.keys():
+                f.write(str(params[key]) + ",")
+            f.write(str(end - start) + "\n")
 
 
 def extract_features(file_name):
