@@ -1,10 +1,15 @@
 import random
 import time
+import numpy as np
 
 import mxnet as mx
 from sklearn import svm
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import r2_score
+from sklearn.linear_model import LinearRegression, LogisticRegression
+from sklearn.preprocessing import PolynomialFeatures
+from sklearn.preprocessing import StandardScaler
+from sklearn.pipeline import Pipeline
 
 batches = [1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048, 4096]
 heights = [16, 32, 64, 128, 256]
@@ -31,7 +36,7 @@ else:
     device = mx.cpu()
 metric = mx.metric.Loss()
 
-random.seed(0)
+random.seed(3)
 
 def SGD(key, weight, grad, grad_norm, lr=0.00001):
     # key is key for weight, we can customize update rule
@@ -183,21 +188,34 @@ def split(X, y):
     X_train, X_test, y_train, y_test = train_test_split(X, y,
                                                         test_size=0.33,
                                                         random_state=42)
+    print(np.array(y_test).shape)
     return X_train, y_train, X_test, y_test
 
 
-def train(x, y, name="svm"):
+def train(x, y, name="poly"):
     model = None
+    print(x[0])
+    print(y[0])
     if name == "svm":
-        model = svm.SVC(kernel='linear')
-        model.fit(x, y)
-    print("Train accuracy :", r2_score(y, model.predict(x)))
+        model = svm.SVR()
+    elif name == 'linear':
+        model = LinearRegression()
+    elif name == 'poly':
+        model = Pipeline([
+                ("poly", PolynomialFeatures(degree=4)),
+                ("std_scaler", StandardScaler()),
+                ("lin_reg", LinearRegression())
+                ])
+    elif name == "fc":
+        pass
+
+    model.fit(x, y)
+    print("Train accuracy :", model.score(x, y))
     return model
 
 
 def test(x, y, model):
-    predict_y = model.predict(x)
-    acc = r2_score(y, predict_y)
+    acc = model.score(x, y)
     print("Test accuracy :", acc)
 
 if __name__ == "__main__":
@@ -206,12 +224,12 @@ if __name__ == "__main__":
     # dshape = (batch_size, 3, 38, 38)
     # mod = get_model(dshape, layers=layers, checkpoint=0)
     file_name = "conv2d_feature"
-    num_trails = 100
+    num_trails = 10000
     #generate_training_data(num_trails, file_name)
     feature_names, x, y = extract_features(file_name)
     train_x, train_y, test_x, test_y = split(x, y)
     model = train(train_x, train_y)
-    # test(test_x, test_y, model)
+    test(test_x, test_y, model)
 
 
 
