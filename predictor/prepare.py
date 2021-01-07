@@ -36,7 +36,7 @@ kernels = [1]
 strides = [1]
 pads = [0]
 num_filters = [1]
-DEBUG = True
+DEBUG = False
 
 repeat_times = 100
 if mx.context.num_gpus():
@@ -140,7 +140,7 @@ def generate_training_data(num_trails, file_name, name="conv2d"):
         elif name == "pooling":
             params['kernel_value'] = all_params['kernel_value']
             params['stride_value'] = all_params['stride_value']
-            params['pooling_type'] = all_params['pooling_type']
+#            params['pooling_type'] = all_params['pooling_type']
             # pooling
             operator = mx.symbol.Pooling(data=data,
                                          kernel=(all_params['kernel_value'], all_params['kernel_value']),
@@ -197,6 +197,7 @@ def generate_training_data(num_trails, file_name, name="conv2d"):
         for i in range(repeat_times):
             out = executor.forward(is_train=True, data=inputs[i], label=labels[i])
             if DEBUG:
+               # print(out[0])
                 loss = (out[0] - labels[i]).asnumpy()
                 print("Loss", i, loss.sum())
 
@@ -206,7 +207,7 @@ def generate_training_data(num_trails, file_name, name="conv2d"):
 
         mx.nd.waitall()
         end = time.time()
-        print("Exec time: %f" % (end - start))
+#        print("Exec time: %f" % (end - start))
 
         # 3. record to file, param1, param2, param3..., training time
         with open(file_name, "a") as f:
@@ -231,7 +232,7 @@ def extract_features(file_name):
                 x.append([float(x) for x in line.split(',')[:-1]])
                 y.append([float(line.split(',')[-1])])
 
-    return feature_names, x, y
+    return feature_names, x, y 
 
 def split(X, y):
     X_train, X_test, y_train, y_test = train_test_split(X, y,
@@ -251,13 +252,12 @@ def train(x, y, name="poly"):
         model = LinearRegression()
     elif name == 'poly':
         model = Pipeline([
-                ("poly", PolynomialFeatures(degree=2)),
+                ("poly", PolynomialFeatures(degree=4)),
                 ("std_scaler", StandardScaler()),
                 ("lin_reg", LinearRegression())
                 ])
     elif name == "fc":
         pass
-
     model.fit(x, y)
     print("Train accuracy :", model.score(x, y))
     return model
@@ -267,11 +267,11 @@ def test(x, y, model):
     acc = model.score(x, y)
     print("Test accuracy :", acc)
 
-def get_trained_model(num_trails, opt="conv2d", filename="conv2d_feature"):
+def get_trained_model(num_trails, opt, filename):
     print("Fit model for operator " + opt + "-" * 20)
     if not os.path.exists(filename):
-        generate_training_data(num_trails, file_name, opt)
-    feature_names, x, y = extract_features(file_name)
+        generate_training_data(num_trails, filename, opt)
+    feature_names, x, y = extract_features(filename)
     train_x, train_y, test_x, test_y = split(x, y)
     model = train(train_x, train_y)
     test(test_x, test_y, model)
@@ -283,12 +283,12 @@ if __name__ == "__main__":
     # dshape = (batch_size, 3, 38, 38)
     # mod = get_model(dshape, layers=layers, checkpoint=0)
     file_name = "conv2d_feature"
-    num_trails = 1
+    num_trails = 10000
 
-    model_conv, conv_fea = get_trained_model(num_trails, "conv2d")
-    model_pooling, pool_fea = get_trained_model(num_trails, "pooling")
-    model_fc, fc_fea = get_trained_model(num_trails, "fc")
-    model_bn, bn_fea = get_trained_model(num_trails, "bn")
+    model_conv, conv_fea = get_trained_model(num_trails, "conv2d", "conv2d_feature")
+    model_pooling, pool_fea = get_trained_model(num_trails, "pooling", "pooling_feature")
+    model_fc, fc_fea = get_trained_model(num_trails, "fc", "fc_feature")
+    model_bn, bn_fea = get_trained_model(num_trails, "bn", "bn_feature")
 
     data = mx.symbol.stop_gradient(mx.symbol.Variable('data'))
     all_params = generate_params()
