@@ -3,6 +3,7 @@ import time
 import numpy as np
 
 import pandas as pd
+import matplotlib.pyplot as plt
 
 from sklearn import svm
 from sklearn.model_selection import train_test_split
@@ -290,34 +291,49 @@ if __name__ == "__main__":
     model_fc, fc_fea = get_trained_model(num_trails, "fc")
     model_bn, bn_fea = get_trained_model(num_trails, "bn")
 
-    data = mx.symbol.stop_gradient(mx.symbol.Variable('data'))
-    all_params = generate_params()
-    conv = ConvModule(data,
-                      all_params['num_filter'],
-                      kernel=(all_params['kernel_value'], all_params['kernel_value']),
-                      pad=(all_params['pad_value'], all_params['pad_value']),
-                      stride=(all_params['stride_value'], all_params['stride_value']), fix_gamma=True)
-    executor = get_executor(conv, dshape=(all_params['batch_size'],
-                                          all_params['channel'],
-                                          all_params['height'],
-                                          all_params['width']))
 
-    start = time.time()
-    for i in range(repeat_times):
-        executor.forward()
-        executor.backward()
-    mx.nd.waitall()
-    end = time.time()
-    print("Actual run time:", end - start)
 
-    # print(all_params)
-    if 'train_time\n' in conv_fea:
-        conv_fea.remove('train_time\n')
-    if 'train_time\n' in bn_fea:
-        bn_fea.remove('train_time\n')
-    pred_conv = model_conv.predict(pd.DataFrame(all_params, index=[0])[conv_fea].to_numpy())
-    pred_bn = model_bn.predict(pd.DataFrame(all_params, index=[0])[bn_fea].to_numpy())
-    print("Predict run time", pred_conv + pred_bn)
+
+    module_trails = 1
+    predict_time = []
+    actual_time = []
+    for i in range(module_trails):
+        data = mx.symbol.stop_gradient(mx.symbol.Variable('data'))
+        all_params = generate_params()
+        conv = ConvModule(data,
+                          all_params['num_filter'],
+                          kernel=(all_params['kernel_value'], all_params['kernel_value']),
+                          pad=(all_params['pad_value'], all_params['pad_value']),
+                          stride=(all_params['stride_value'], all_params['stride_value']), fix_gamma=True)
+        executor = get_executor(conv, dshape=(all_params['batch_size'],
+                                              all_params['channel'],
+                                              all_params['height'],
+                                              all_params['width']))
+
+        start = time.time()
+        for i in range(repeat_times):
+            executor.forward()
+            executor.backward()
+        mx.nd.waitall()
+        end = time.time()
+        print("Actual run time:", end - start)
+        actual_time.append(end - start)
+
+        # print(all_params)
+        if 'train_time\n' in conv_fea:
+            conv_fea.remove('train_time\n')
+        if 'train_time\n' in bn_fea:
+            bn_fea.remove('train_time\n')
+        pred_conv = model_conv.predict(pd.DataFrame(all_params, index=[0])[conv_fea].to_numpy())
+        pred_bn = model_bn.predict(pd.DataFrame(all_params, index=[0])[bn_fea].to_numpy())
+        print("Predict run time", pred_conv + pred_bn)
+        predict_time.append(pred_conv + pred_bn)
+
+    plt.scatter(predict_time, actual_time)
+    score = r2_score(predict_time, actual_time)
+    print("R^2 for prediction vs actual run time", score)
+    plt.savefig("result")
+
 
 
 
