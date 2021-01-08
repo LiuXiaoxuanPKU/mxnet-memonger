@@ -284,15 +284,12 @@ if __name__ == "__main__":
     # dshape = (batch_size, 3, 38, 38)
     # mod = get_model(dshape, layers=layers, checkpoint=0)
     file_name = "conv2d_feature"
-    num_trails = 10000
+    num_trails = 100
 
     model_conv, conv_fea = get_trained_model(num_trails, "conv2d", "conv2d_feature")
     model_pooling, pool_fea = get_trained_model(num_trails, "pooling", "pooling_feature")
     model_fc, fc_fea = get_trained_model(num_trails, "fc", "fc_feature")
     model_bn, bn_fea = get_trained_model(num_trails, "bn", "bn_feature")
-
-
-
 
     module_trails = 1
     predict_time = []
@@ -328,6 +325,10 @@ if __name__ == "__main__":
         pred_bn = model_bn.predict(pd.DataFrame(all_params, index=[0])[bn_fea].to_numpy())
         print("Predict run time", pred_conv + pred_bn)
         predict_time.append(pred_conv + pred_bn)
+
+    with open("predict_result.txt", "w") as f:
+        for i, t in enumerate(predict_time):
+            f.write("%f,%f\n" % (predict_time[i], actual_time[i]))
 
     plt.scatter(predict_time, actual_time)
     score = r2_score(predict_time, actual_time)
