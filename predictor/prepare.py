@@ -30,13 +30,13 @@ pooling_types = ['max', 'avg']
 hidden_max = 500
 hidden_min = 100
 
-batches = [1]
-heights = [3]
-widths = [3]
-kernels = [1]
-strides = [1]
-pads = [0]
-num_filters = [1]
+#batches = [1]
+#heights = [3]
+#widths = [3]
+#kernels = [1]
+#strides = [1]
+#pads = [0]
+#num_filters = [1]
 DEBUG = False
 
 repeat_times = 100
@@ -294,7 +294,7 @@ if __name__ == "__main__":
 
 
 
-    module_trails = 1
+    module_trails = 100
     predict_time = []
     actual_time = []
     for i in range(module_trails):
@@ -327,7 +327,7 @@ if __name__ == "__main__":
         pred_conv = model_conv.predict(pd.DataFrame(all_params, index=[0])[conv_fea].to_numpy())
         pred_bn = model_bn.predict(pd.DataFrame(all_params, index=[0])[bn_fea].to_numpy())
         print("Predict run time", pred_conv + pred_bn)
-        predict_time.append(pred_conv + pred_bn)
+        predict_time.append((pred_conv + pred_bn)[0][0])
 
     plt.scatter(predict_time, actual_time)
     score = r2_score(predict_time, actual_time)
