@@ -1,16 +1,21 @@
-import os
 import random
-import sys
 import time
-
 import numpy as np
+from numpy.polynomial.polynomial import polyfit
+
+import pandas as pd
+import matplotlib.pyplot as plt
+
 from sklearn import svm
-from sklearn.linear_model import LinearRegression
 from sklearn.model_selection import train_test_split
-from sklearn.pipeline import Pipeline
+from sklearn.metrics import r2_score
+from sklearn.linear_model import LinearRegression, LogisticRegression
 from sklearn.preprocessing import PolynomialFeatures
 from sklearn.preprocessing import StandardScaler
+from sklearn.pipeline import Pipeline
 
+import os
+import sys
 sys.path.append('../')
 from util import *
 
@@ -25,7 +30,6 @@ layouts = [None, 'NCDHW', 'NCHW', 'NCW', 'NDHWC', 'NHWC']
 pooling_types = ['max', 'avg']
 hidden_max = 500
 hidden_min = 100
-cpu_num = 8
 
 batches = [1]
 heights = [3]
@@ -45,7 +49,6 @@ metric = mx.metric.Loss()
 
 random.seed(3)
 
-
 def SGD(key, weight, grad, grad_norm, lr=0.001):
     # key is key for weight, we can customize update rule
     # weight is weight array
@@ -61,14 +64,12 @@ def SGD(key, weight, grad, grad_norm, lr=0.001):
     else:
         pass
 
-
 def get_executor(operator, dshape):
     label = mx.sym.Variable('label')
     loss = mx.symbol.MakeLoss(mx.sym.square(label - operator))
     pred_loss = mx.sym.Group([mx.sym.BlockGrad(operator), loss])
     executor = pred_loss.simple_bind(ctx=device, data=dshape, grad_req='write')
     return executor
-
 
 def generate_params():
     all_params = {}
@@ -103,51 +104,10 @@ def generate_params():
     all_params['num_filter'] = num_filter
     all_params['pooling_type'] = pooling_type
     all_params['hidden_num'] = hidden_num
-
-    # number of threads to run the program
-    all_params['cpu_num'] = random.randint(1, cpu_num)
     return all_params
 
 
-def get_train_time(category, executor, operator, inputs, labels, all_params):
-    keys = operator.list_arguments()
-    if category == "forward+backward":
-        start = time.time()
-        for i in range(repeat_times):
-            out = executor.forward(is_train=True, data=inputs[i], label=labels[i])
-            if DEBUG:
-                # print(out[0])
-                loss = (out[0] - labels[i]).asnumpy()
-                print("Loss", i, loss.sum())
-
-            executor.backward()
-            for key in keys:
-                SGD(key, executor.arg_dict[key], executor.grad_dict[key], grad_norm=all_params['batch_size'])
-
-        mx.nd.waitall()
-        end = time.time()
-
-    elif category == "forward":
-        start = time.time()
-        for i in range(repeat_times):
-            out = executor.forward(is_train=True, data=inputs[i], label=labels[i])
-        mx.nd.waitall()
-        end = time.time()
-
-    elif category == "backward":
-        start = time.time()
-        for i in range(repeat_times):
-            executor.backward()
-            for key in keys:
-                SGD(key, executor.arg_dict[key], executor.grad_dict[key], grad_norm=all_params['batch_size'])
-        mx.nd.waitall()
-        end = time.time()
-
-    print("Exec time: %f" % (end - start))
-    return end - start
-
-
-def generate_training_data(num_trails, file_name, name="conv2d", category="forward"):
+def generate_training_data(num_trails, file_name, name="conv2d"):
     for i in range(num_trails):
         params = {}
         data = mx.symbol.stop_gradient(mx.symbol.Variable('data'))
@@ -161,11 +121,8 @@ def generate_training_data(num_trails, file_name, name="conv2d", category="forwa
                   all_params['height'],
                   all_params['width'])
 
-        os.environ['OMP_NUM_THREADS'] = all_params['cpu_num']
-        print("Number of threads: %d" % (os.environ["OMP_NUM_THREADS"]))
-
         if name == "conv2d":
-            # 1. generate the operator
+        # 1. generate the operator
             # conv2d
             print(params)
             params['kernel_value'] = all_params['kernel_value']
@@ -173,11 +130,11 @@ def generate_training_data(num_trails, file_name, name="conv2d", category="forwa
             params['pad_value'] = all_params['pad_value']
             params['num_filter'] = all_params['num_filter']
             operator = mx.sym.Convolution(data=data,
-                                          kernel=(all_params['kernel_value'], all_params['kernel_value']),
-                                          stride=(all_params['stride_value'], all_params['stride_value']),
-                                          pad=(all_params['pad_value'], all_params['pad_value']),
-                                          num_filter=all_params['num_filter'],
-                                          name=name)
+                                      kernel=(all_params['kernel_value'], all_params['kernel_value']),
+                                      stride=(all_params['stride_value'], all_params['stride_value']),
+                                      pad=(all_params['pad_value'], all_params['pad_value']),
+                                      num_filter=all_params['num_filter'],
+                                      name=name)
 
         elif name == "bn":
             operator = mx.symbol.BatchNorm(data, name='bn')
@@ -185,7 +142,7 @@ def generate_training_data(num_trails, file_name, name="conv2d", category="forwa
         elif name == "pooling":
             params['kernel_value'] = all_params['kernel_value']
             params['stride_value'] = all_params['stride_value']
-            #            params['pooling_type'] = all_params['pooling_type']
+#            params['pooling_type'] = all_params['pooling_type']
             # pooling
             operator = mx.symbol.Pooling(data=data,
                                          kernel=(all_params['kernel_value'], all_params['kernel_value']),
@@ -226,6 +183,7 @@ def generate_training_data(num_trails, file_name, name="conv2d", category="forwa
             executor.forward(is_train=False)
             labels.append(executor.outputs[0].copy())
 
+
         if name + '_weight' in args.keys():
             args[name + '_weight'][:] = mx.random.uniform(-1, 1, args[name + '_weight'].shape)
         if name + '_bias' in args.keys():
@@ -236,7 +194,22 @@ def generate_training_data(num_trails, file_name, name="conv2d", category="forwa
             args[name + '_beta'][:] = mx.random.uniform(-1, 1, args[name + '_beta'].shape)
 
         # 2. run the operator multiple times, get the training time
-        train_time = get_train_time(category, executor, operator, inputs, labels, all_params)
+        start = time.time()
+        keys = operator.list_arguments()
+        for i in range(repeat_times):
+            out = executor.forward(is_train=True, data=inputs[i], label=labels[i])
+            if DEBUG:
+               # print(out[0])
+                loss = (out[0] - labels[i]).asnumpy()
+                print("Loss", i, loss.sum())
+
+            executor.backward()
+            for key in keys:
+                SGD(key, executor.arg_dict[key], executor.grad_dict[key], grad_norm=all_params['batch_size'])
+
+        mx.nd.waitall()
+        end = time.time()
+#        print("Exec time: %f" % (end - start))
 
         # 3. record to file, param1, param2, param3..., training time
         with open(file_name, "a") as f:
@@ -245,7 +218,7 @@ def generate_training_data(num_trails, file_name, name="conv2d", category="forwa
             f.write("train_time\n")
             for key in params.keys():
                 f.write(str(params[key]) + ",")
-            f.write(str(train_time) + "\n")
+            f.write(str(end - start) + "\n")
 
 
 def extract_features(file_name):
@@ -261,8 +234,7 @@ def extract_features(file_name):
                 x.append([float(x) for x in line.split(',')[:-1]])
                 y.append([float(line.split(',')[-1])])
 
-    return feature_names, x, y
-
+    return feature_names, x, y 
 
 def split(X, y):
     X_train, X_test, y_train, y_test = train_test_split(X, y,
@@ -282,10 +254,10 @@ def train(x, y, name="poly"):
         model = LinearRegression()
     elif name == 'poly':
         model = Pipeline([
-            ("poly", PolynomialFeatures(degree=4)),
-            ("std_scaler", StandardScaler()),
-            ("lin_reg", LinearRegression())
-        ])
+                ("poly", PolynomialFeatures(degree=4)),
+                ("std_scaler", StandardScaler()),
+                ("lin_reg", LinearRegression())
+                ])
     elif name == "fc":
         pass
     model.fit(x, y)
@@ -297,7 +269,6 @@ def test(x, y, model):
     acc = model.score(x, y)
     print("Test accuracy :", acc)
 
-
 def get_trained_model(num_trails, opt, filename):
     print("Fit model for operator " + opt + "-" * 20)
     if not os.path.exists(filename):
@@ -308,14 +279,13 @@ def get_trained_model(num_trails, opt, filename):
     test(test_x, test_y, model)
     return model, feature_names
 
-
 def predict_network(mod, models):
     sym = mod.symbol
     params = mod.get_params()
     outputs = mod.get_outputs()
     for param in params:
         for key in param.keys():
-            print(key, param[key].shape)
+            print (key, param[key].shape)
         print("-" * 20)
 
     for output in outputs:
@@ -336,26 +306,25 @@ if __name__ == "__main__":
     layers = [3, 24, 36, 3]
     batch_size = 128
     dshape = (batch_size, 3, 38, 38)
+    mod = get_model(dshape, layers=layers, checkpoint=0)
+
+    # allocate memory given the input data and label shapes
+    train_data = get_train_iter(dshape)
+    mod.bind(data_shapes=train_data.provide_data, label_shapes=train_data.provide_label)
+    # initialize parameters by uniform random numbers
+    mod.init_params(initializer=mx.init.Uniform(scale=.1))
+    # use SGD with learning rate 0.1 to train
+    mod.init_optimizer(optimizer='sgd', optimizer_params=(('learning_rate', 0.1), ))
+
+    predict_network(mod, {})
 
     num_trails = 100
 
-    model_conv, conv_fea = get_trained_model(num_trails, "conv2d", "conv2d_feature")
+    # model_conv, conv_fea = get_trained_model(num_trails, "conv2d", "conv2d_feature")
     # model_pooling, pool_fea = get_trained_model(num_trails, "pooling", "pooling_feature")
     # model_fc, fc_fea = get_trained_model(num_trails, "fc", "fc_feature")
     # model_bn, bn_fea = get_trained_model(num_trails, "bn", "bn_feature")
     # print(bn_fea)
-
-
-    #
-    # mod = get_model(dshape, layers=layers, checkpoint=0)
-    #
-    # # allocate memory given the input data and label shapes
-    # train_data = get_train_iter(dshape)
-    # mod.bind(data_shapes=train_data.provide_data, label_shapes=train_data.provide_label)
-    # # initialize parameters by uniform random numbers
-    # mod.init_params(initializer=mx.init.Uniform(scale=.1))
-    # # use SGD with learning rate 0.1 to train
-    # mod.init_optimizer(optimizer='sgd', optimizer_params=(('learning_rate', 0.1),))
 
     # module_trails = 1
     # predict_time = []
@@ -405,3 +374,11 @@ if __name__ == "__main__":
     #
     #
     #
+
+
+
+
+
+
+
+
