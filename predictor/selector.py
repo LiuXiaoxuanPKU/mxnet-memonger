@@ -28,7 +28,7 @@ def predictNetMem(mod):
 
 def predictNetTime(mod, dshape, num_core):
     # allocate memory given the input data and label shapes
-    train_data = prepare.get_train_iter(dshape)
+    train_data = util.get_train_iter(dshape)
     mod.bind(data_shapes=train_data.provide_data, label_shapes=train_data.provide_label)
     # initialize parameters by uniform random numbers
     mod.init_params(initializer=mx.init.Uniform(scale=.1))

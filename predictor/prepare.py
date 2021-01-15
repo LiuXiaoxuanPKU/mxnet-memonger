@@ -16,12 +16,12 @@ from util import *
 from ast import literal_eval as make_tuple
 
 batches = [1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048, 4096]
-heights = [16, 32, 64, 128, 256]
-widths = [16, 32, 64, 128, 256]
+heights = [16, 32, 64, 128]
+widths = [16, 32, 64, 128]
 kernels = [1, 3, 5, 7, 9, 11, 13, 15, 17]
 strides = [1, 2, 3, 5, 7]
 pads = [1, 2, 3]
-num_filters = [12, 24, 36, 48, 96, 128, 256]
+num_filters = [12, 24, 36, 48, 96, 128]
 layouts = [None, 'NCDHW', 'NCHW', 'NCW', 'NDHWC', 'NHWC']
 pooling_types = ['max', 'avg']
 hidden_max = 500
@@ -45,7 +45,7 @@ else:
     device = mx.cpu()
 metric = mx.metric.Loss()
 
-random.seed(3)
+random.seed(42)
 
 
 def SGD(key, weight, grad, grad_norm, lr=0.001):
@@ -310,7 +310,6 @@ def train_test(filename):
     # TODO: feature_names
     return model
 
-
 def get_trained_model(num_trails, opt, filename):
     print("Fit model for operator " + opt + "-" * 20)
     forward_filename = filename + "_forward"
@@ -351,7 +350,6 @@ def copy_symbol(name, attrs):
     else:
         op = mx.symbol.Flatten(data=data, name='flatten')
     return op
-
 
 def generate_x(mod, dshape, num_core):
     sym = mod.symbol
@@ -446,7 +444,7 @@ if __name__ == "__main__":
     batch_size = 256
     dshape = (batch_size, 3, 64, 64)
 
-    num_trails = 100
+    num_trails = 5000
 
     conv_model= get_trained_model(num_trails, "conv2d", "conv2d_feature")
     pool_model = get_trained_model(num_trails, "pooling", "pooling_feature")
