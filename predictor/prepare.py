@@ -352,7 +352,7 @@ def copy_symbol(name, attrs):
 
 
 # TODO: change the training for fc
-def generate_x(mod, dshape):
+def generate_x(mod, dshape, num_core):
     sym = mod.symbol
     attrs = sym.list_attr()
 
@@ -372,7 +372,7 @@ def generate_x(mod, dshape):
         pad_value = make_tuple(attrs['pad'])[0]
         num_filter = make_tuple(attrs['num_filter'])
         # cpu_num = int(os.environ['OMP_NUM_THREADS'])
-        cpu_num = 4
+        cpu_num = num_core
         return [[batch_size, height, width, kernel_value, stride_value, pad_value, num_filter, cpu_num]]
     elif sym.name.startswith("batchnorm"):
         # batch_size,height,width
@@ -394,7 +394,7 @@ def get_opt_name(layer_name):
             return opt
     return None
 
-def predict_network(mod, models, org_dshape):
+def predict_network(mod, models, org_dshape, num_core):
     sym = mod.symbol
     total_train_time = 0
 
@@ -426,7 +426,7 @@ def predict_network(mod, models, org_dshape):
             opt_t = 0
             # plus layer is not counted
             if opt_name:
-                x = generate_x(operator_mod, dshape)
+                x = generate_x(operator_mod, dshape, num_core)
                 forward_t = models[opt_name]["forward"].predict(x)
                 backward_t = models[opt_name]["backward"].predict(x)
                 opt_t = forward_t + 2 * backward_t if operator_mod.symbol.attr("mirror_stage") else forward_t + backward_t
@@ -467,7 +467,7 @@ if __name__ == "__main__":
     # use SGD with learning rate 0.1 to train
     mod.init_optimizer(optimizer='sgd', optimizer_params=(('learning_rate', 0.1),))
 
-    predict_train_time = predict_network(mod, operator_models, dshape)
+    predict_train_time = predict_network(mod, operator_models, dshape, 4)
     print("Predict train time", predict_train_time)
 
     # module_trails = 1
