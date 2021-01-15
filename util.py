@@ -61,10 +61,42 @@ def get_model(dshape, layers, checkpoint=0):
         print(plan_info)
         new_cost = memonger.get_cost(net, data=dshape)
         print('New feature map cost=%d MB' % new_cost)
-        exit()
     mod = mx.mod.Module(symbol=net,
                         context=mx.cpu(),
                         data_names=['data'],
                         label_names=['softmax_label'])
 
     return mod
+
+
+def get_train_iter(dshape):
+    jitter_param = 0.4
+    lighting_param = 0.1
+    mean_rgb = [123.68, 116.779, 103.939]
+    std_rgb = [58.393, 57.12, 57.375]
+
+    return mx.io.ImageRecordIter(
+        path_imgrec='/Users/xiaoxuanliu/Documents/UCB/research/mxnet-memonger/tiny-imagenet_train.rec',
+        path_imgidx='/Users/xiaoxuanliu/Documents/UCB/research/mxnet-memonger/tiny-imagenet_train.idx',
+        preprocess_threads=36,
+        shuffle=True,
+        batch_size=dshape[0],
+
+        data_shape=(dshape[1], dshape[2], dshape[3]),
+        mean_r=mean_rgb[0],
+        mean_g=mean_rgb[1],
+        mean_b=mean_rgb[2],
+        std_r=std_rgb[0],
+        std_g=std_rgb[1],
+        std_b=std_rgb[2],
+        rand_mirror=True,
+        random_resized_crop=True,
+        max_aspect_ratio=4. / 3.,
+        min_aspect_ratio=3. / 4.,
+        max_random_area=1,
+        min_random_area=0.08,
+        brightness=jitter_param,
+        saturation=jitter_param,
+        contrast=jitter_param,
+        pca_noise=lighting_param,
+    )

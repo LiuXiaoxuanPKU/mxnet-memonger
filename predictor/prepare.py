@@ -27,15 +27,16 @@ pooling_types = ['max', 'avg']
 hidden_max = 500
 hidden_min = 100
 cpu_num = 8
-
-batches = [1]
-heights = [3]
-widths = [3]
-kernels = [1]
-strides = [1]
-pads = [0]
-num_filters = [1]
 DEBUG = False
+
+# batches = [1]
+# heights = [3]
+# widths = [3]
+# kernels = [1]
+# strides = [1]
+# pads = [0]
+# num_filters = [1]
+
 
 repeat_times = 100
 if mx.context.num_gpus():
@@ -155,12 +156,14 @@ def generate_training_data(num_trails, file_name, category, name):
 
         all_params = generate_params()
         params['batch_size'] = all_params['batch_size']
-        params['height'] = all_params['height']
-        params['width'] = all_params['width']
+        params['height'] = all_params['height'] if name != "fc" else all_params['batch_size']
+        params['width'] = all_params['width'] if name != "fc" else all_params['height'] * all_params['width']
+
         dshape = (all_params['batch_size'],
                   all_params['channel'],
                   all_params['height'],
                   all_params['width'])
+        dshape = dshape if name != "fc" else (dshape[0], dshape[2] * dshape[3])
 
         os.environ['OMP_NUM_THREADS'] = all_params['cpu_num']
         print("Number of threads: %s" % (os.environ["OMP_NUM_THREADS"]))
@@ -203,7 +206,9 @@ def generate_training_data(num_trails, file_name, category, name):
                                                 name='fc')
 
         # Get executor
-        executor = get_executor(operator, dshape)
+        executor = get_executor(operator, (dshape[0], dshape))
+
+
         args = executor.arg_dict
         print(args.keys())
 
@@ -351,7 +356,6 @@ def copy_symbol(name, attrs):
     return op
 
 
-# TODO: change the training for fc
 def generate_x(mod, dshape, num_core):
     sym = mod.symbol
     attrs = sym.list_attr()
@@ -406,7 +410,7 @@ def predict_network(mod, models, org_dshape, num_core):
     all_layers = sym.get_internals()
     for layer_name in all_layers.list_outputs():
         if layer_name.endswith("output"):
-            print(layer_name)
+            # print(layer_name)
 
             if not layer_name.startswith("_"):
                 operator_sym = copy_symbol(layer_name, all_layers[layer_name].list_attr())
@@ -434,16 +438,16 @@ def predict_network(mod, models, org_dshape, num_core):
             dshape = operator_mod.get_outputs()[0].shape
             total_train_time += opt_t
 
-            print(layer_name, dshape)
-            print("-" * 30)
+            # print(layer_name, dshape)
+            # print("-" * 30)
 
     return total_train_time
 
 
 if __name__ == "__main__":
     layers = [3, 24, 36, 3]
-    batch_size = 128
-    dshape = (batch_size, 3, 38, 38)
+    batch_size = 256
+    dshape = (batch_size, 3, 64, 64)
 
     num_trails = 100
 
@@ -469,52 +473,3 @@ if __name__ == "__main__":
 
     predict_train_time = predict_network(mod, operator_models, dshape, 4)
     print("Predict train time", predict_train_time)
-
-    # module_trails = 1
-    # predict_time = []
-    # actual_time = []
-    # for i in range(module_trails):
-    #     data = mx.symbol.stop_gradient(mx.symbol.Variable('data'))
-    #     all_params = generate_params()
-    #     conv = ConvModule(data,
-    #                       all_params['num_filter'],
-    #                       kernel=(all_params['kernel_value'], all_params['kernel_value']),
-    #                       pad=(all_params['pad_value'], all_params['pad_value']),
-    #                       stride=(all_params['stride_value'], all_params['stride_value']), fix_gamma=True)
-    #     executor = get_executor(conv, dshape=(all_params['batch_size'],
-    #                                           all_params['channel'],
-    #                                           all_params['height'],
-    #                                           all_params['width']))
-    #
-    #     start = time.time()
-    #     for i in range(repeat_times):
-    #         executor.forward()
-    #         executor.backward()
-    #     mx.nd.waitall()
-    #     end = time.time()
-    #     print("Actual run time:", end - start)
-    #     actual_time.append(end - start)
-    #
-    #     if 'train_time\n' in conv_fea:
-    #         conv_fea.remove('train_time\n')
-    #     if 'train_time\n' in bn_fea:
-    #         bn_fea.remove('train_time\n')
-    #
-    #     pred_conv = model_conv.predict(pd.DataFrame(all_params, index=[0])[conv_fea].to_numpy())
-    #     pred_bn = model_bn.predict(pd.DataFrame(all_params, index=[0])[bn_fea].to_numpy())
-    #     print("Predict run time", pred_conv + pred_bn)
-    #     predict_time.append(pred_conv + pred_bn)
-    #
-    # with open("predict_result.txt", "w") as f:
-    #     for i, t in enumerate(predict_time):
-    #         f.write("%f,%f\n" % (predict_time[i], actual_time[i]))
-    #
-    # plt.scatter(predict_time, actual_time)
-    # m, b = polyfit(predict_time, actual_time, 1)
-    # plt.plot(predict_time, m * predict_time + b)
-    # score = r2_score(predict_time, actual_time)
-    # print("R^2 for prediction vs actual run time", score)
-    # plt.savefig("result")
-    #
-    #
-    #
