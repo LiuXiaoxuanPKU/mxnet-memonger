@@ -1,37 +1,32 @@
+import os
 import random
+import time
+from importlib import reload
+
 import mxnet as mx
 
 import prepare
 import util
 import memonger
 
-ins_num = 1
-ins_prices = [100]
-ins_mems = [8]
-ins_cores = [2]
+
+ins_num = 5
+ins_prices = [0.085, 0.17, 0.34, 0.68, 1.53]
+ins_mems = [4, 8, 16, 32, 72]
+ins_cores = [2, 4, 8, 16, 36]
 
 C = 1.4 # TODO: test the accuracy of C
 layers = [3, 24, 36, 3]
 batch_size = 256
 dshape = (batch_size, 3, 64, 64)
 
+DEBUG = True
+
 def predictNetMem(mod):
     act_mem = memonger.get_cost(mod.symbol, data=dshape)
     return act_mem * 1.0 / 1024 / 1024 / 1024 + C
 
 def predictNetTime(mod, dshape, num_core):
-    num_trails = 1000
-    conv_model = prepare.get_trained_model(num_trails, "conv2d", "conv2d_feature")
-    pool_model = prepare.get_trained_model(num_trails, "pooling", "pooling_feature")
-    fc_model = prepare.get_trained_model(num_trails, "fc", "fc_feature")
-    bn_model = prepare.get_trained_model(num_trails, "bn", "bn_feature")
-    operator_models = {
-        "convolution": conv_model,
-        "pooling": pool_model,
-        "fullyconnected": fc_model,
-        "batchnorm": bn_model,
-    }
-
     # allocate memory given the input data and label shapes
     train_data = prepare.get_train_iter(dshape)
     mod.bind(data_shapes=train_data.provide_data, label_shapes=train_data.provide_label)
@@ -40,7 +35,34 @@ def predictNetTime(mod, dshape, num_core):
     # use SGD with learning rate 0.1 to train
     mod.init_optimizer(optimizer='sgd', optimizer_params=(('learning_rate', 0.1),))
 
-    predict_train_time = prepare.predict_network(mod, operator_models, dshape, num_core)
+    if not DEBUG:
+        num_trails = 1000
+        conv_model = prepare.get_trained_model(num_trails, "conv2d", "conv2d_feature")
+        pool_model = prepare.get_trained_model(num_trails, "pooling", "pooling_feature")
+        fc_model = prepare.get_trained_model(num_trails, "fc", "fc_feature")
+        bn_model = prepare.get_trained_model(num_trails, "bn", "bn_feature")
+        operator_models = {
+            "convolution": conv_model,
+            "pooling": pool_model,
+            "fullyconnected": fc_model,
+            "batchnorm": bn_model,
+        }
+
+        predict_train_time = prepare.predict_network(mod, operator_models, dshape, num_core)
+    else: # Perfect prediction
+        os.environ['OMP_NUM_THREADS'] = str(num_core)
+        # Reimport to make environmental variable work
+        reload(mx)
+
+
+        data_iter = mx.io.NDArrayIter(data=mx.random.uniform(-1, 1, dshape), label=mx.random.uniform(-1, 1, (dshape[0])), batch_size=dshape[0])
+        for batch in data_iter:
+            start = time.time()
+            mod.forward(batch)
+            mod.backward()
+            mx.nd.waitall()
+            end = time.time()
+            predict_train_time = end - start
 
     return predict_train_time
 
@@ -97,7 +119,7 @@ def getInstance(T):
 if __name__ == "__main__":
     print("----------------")
     # our method
-    min_idx, min_cost = getInstance(10)
+    min_idx, min_cost = getInstance(100)
 
     # random selection
     rand_idx = 0
