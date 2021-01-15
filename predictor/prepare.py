@@ -19,12 +19,12 @@ sys.path.append('../')
 from util import *
 
 batches = [1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048, 4096]
-heights = [16, 32, 64, 128, 256]
-widths = [16, 32, 64, 128, 256]
+heights = [16, 32, 64, 128]
+widths = [16, 32, 64, 128]
 kernels = [1, 3, 5, 7, 9, 11, 13, 15, 17]
 strides = [1, 2, 3, 5, 7]
 pads = [1, 2, 3]
-num_filters = [12, 24, 36, 48, 96, 128, 256]
+num_filters = [12, 24, 36, 48, 96, 128]
 layouts = [None, 'NCDHW', 'NCHW', 'NCW', 'NDHWC', 'NHWC']
 pooling_types = ['max', 'avg']
 hidden_max = 500
@@ -46,7 +46,7 @@ else:
     device = mx.cpu()
 metric = mx.metric.Loss()
 
-random.seed(3)
+random.seed(42)
 
 def SGD(key, weight, grad, grad_norm, lr=0.001):
     # key is key for weight, we can customize update rule
@@ -284,17 +284,14 @@ if __name__ == "__main__":
     # dshape = (batch_size, 3, 38, 38)
     # mod = get_model(dshape, layers=layers, checkpoint=0)
     file_name = "conv2d_feature"
-    num_trails = 10000
+    num_trails = 100
 
     model_conv, conv_fea = get_trained_model(num_trails, "conv2d", "conv2d_feature")
     model_pooling, pool_fea = get_trained_model(num_trails, "pooling", "pooling_feature")
     model_fc, fc_fea = get_trained_model(num_trails, "fc", "fc_feature")
     model_bn, bn_fea = get_trained_model(num_trails, "bn", "bn_feature")
 
-
-
-
-    module_trails = 100
+    module_trails = 10000
     predict_time = []
     actual_time = []
     for i in range(module_trails):
@@ -328,6 +325,9 @@ if __name__ == "__main__":
         pred_bn = model_bn.predict(pd.DataFrame(all_params, index=[0])[bn_fea].to_numpy())
         print("Predict run time", pred_conv + pred_bn)
         predict_time.append((pred_conv + pred_bn)[0][0])
+
+        with open("predict_result.txt", "a") as f:
+            f.write("%f,%f\n" % ((pred_conv + pred_bn)[0][0], end - start))
 
     plt.scatter(predict_time, actual_time)
     score = r2_score(predict_time, actual_time)
