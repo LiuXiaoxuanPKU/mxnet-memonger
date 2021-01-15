@@ -149,7 +149,7 @@ def get_train_time(category, executor, operator, inputs, labels, all_params):
     return end - start
 
 
-def generate_training_data(num_trails, file_name, category, name):
+def generate_training_data(num_trails, file_name, category, name, cpu_num):
     for i in range(num_trails):
         params = {}
         data = mx.symbol.stop_gradient(mx.symbol.Variable('data'))
@@ -158,15 +158,13 @@ def generate_training_data(num_trails, file_name, category, name):
         params['batch_size'] = all_params['batch_size']
         params['height'] = all_params['height'] if name != "fc" else all_params['batch_size']
         params['width'] = all_params['width'] if name != "fc" else all_params['height'] * all_params['width']
+        params['cpu_num'] = cpu_num
 
         dshape = (all_params['batch_size'],
                   all_params['channel'],
                   all_params['height'],
                   all_params['width'])
         dshape = dshape if name != "fc" else (dshape[0], dshape[2] * dshape[3])
-
-        os.environ['OMP_NUM_THREADS'] = all_params['cpu_num']
-        print("Number of threads: %s" % (os.environ["OMP_NUM_THREADS"]))
 
         if name == "conv2d":
             # 1. generate the operator
@@ -176,7 +174,6 @@ def generate_training_data(num_trails, file_name, category, name):
             params['stride_value'] = all_params['stride_value']
             params['pad_value'] = all_params['pad_value']
             params['num_filter'] = all_params['num_filter']
-            params['cpu_num'] = all_params['cpu_num']
             operator = mx.sym.Convolution(data=data,
                                           kernel=(all_params['kernel_value'], all_params['kernel_value']),
                                           stride=(all_params['stride_value'], all_params['stride_value']),
@@ -206,7 +203,7 @@ def generate_training_data(num_trails, file_name, category, name):
                                                 name='fc')
 
         # Get executor
-        executor = get_executor(operator, (dshape[0], dshape))
+        executor = get_executor(operator, dshape)
 
 
         args = executor.arg_dict
