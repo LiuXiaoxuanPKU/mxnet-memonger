@@ -76,8 +76,8 @@ def get_train_iter(dshape):
     std_rgb = [58.393, 57.12, 57.375]
 
     return mx.io.ImageRecordIter(
-        path_imgrec='/Users/xiaoxuanliu/Documents/UCB/research/mxnet-memonger/tiny-imagenet_train.rec',
-        path_imgidx='/Users/xiaoxuanliu/Documents/UCB/research/mxnet-memonger/tiny-imagenet_train.idx',
+        path_imgrec='/home/ec2-user/mxnet-memonger/tiny-imagenet_train.rec',
+        path_imgidx='/home/ec2-user/mxnet-memonger/tiny-imagenet_train.idx',
         preprocess_threads=36,
         shuffle=True,
         batch_size=dshape[0],
