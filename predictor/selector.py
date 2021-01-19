@@ -16,6 +16,7 @@ ins_mems = [4, 8, 16, 32, 72]
 ins_cores = [2, 4, 8, 16, 36]
 
 C = 1.4 # TODO: test the accuracy of C
+
 layers = [3, 24, 36, 3]
 batch_size = 256
 dshape = (batch_size, 3, 64, 64)

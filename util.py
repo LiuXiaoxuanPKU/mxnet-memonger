@@ -4,6 +4,32 @@ import mxnet as mx
 import memonger
 
 
+def block2symbol(block):
+    data = mx.sym.Variable('data')
+    sym = block(data)
+    params = block.collect_params()
+    arg_params = {}
+    aux_params = {}
+    for k, v in params.items():
+        if v._stype == 'default':
+            data = v.data()
+        else:
+            raise NotImplemented("stype {} is not yet supported for parameters in block2symbol.")
+        arg_params[k] = data
+        aux_params[k] = data
+    return sym, arg_params, aux_params
+
+def getResNet50Model():
+    net = mx.gluon.model_zoo.vision.resnet50_v1(pretrained=True)
+    sym, arg_params, aux_params = block2symbol(net)
+    # Need name = softmax so that label_names can handle softmax_label
+    mx_sym = mx.sym.SoftmaxOutput(data=sym, name='softmax')
+    model = mx.mod.Module(symbol=mx_sym, context=mx.cpu(),
+                          label_names=['softmax_label'])
+
+    return model
+
+
 def ConvModule(sym, num_filter, kernel, pad=(0, 0), stride=(1, 1), fix_gamma=True):
     conv = mx.sym.Convolution(data=sym, kernel=kernel, stride=stride, pad=pad, num_filter=num_filter)
     bn = mx.sym.BatchNorm(data=conv, fix_gamma=fix_gamma)
@@ -26,6 +52,7 @@ def ResModule(sym, base_filter, stage, layer, fix_gamma=True):
     # Annotate the critical points that can be saved as inter-stage parameter
     sym._set_attr(mirror_stage='True')
     return sum_sym
+
 
 def get_symbol(layers):
     """Get a 4-stage residual net, with configurations specified as layers.
@@ -68,7 +95,6 @@ def get_model(dshape, layers, checkpoint=0):
 
     return mod
 
-
 def get_train_iter(dshape):
     jitter_param = 0.4
     lighting_param = 0.1
@@ -100,3 +126,6 @@ def get_train_iter(dshape):
         contrast=jitter_param,
         pca_noise=lighting_param,
     )
+
+if __name__ == "__main__":
+    getResNet50Sym()
