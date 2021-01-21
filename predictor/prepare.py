@@ -15,13 +15,13 @@ sys.path.append('../')
 from util import *
 from ast import literal_eval as make_tuple
 
-batches = [1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048, 4096]
-heights = [16, 32, 64, 128]
-widths = [16, 32, 64, 128]
-kernels = [1, 3, 5, 7, 9, 11, 13, 15, 17]
-strides = [1, 2, 3, 5, 7]
-pads = [1, 2, 3]
-num_filters = [12, 24, 36, 48, 96, 128]
+# batches = [1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048, 4096]
+# heights = [16, 32, 64, 128]
+# widths = [16, 32, 64, 128]
+# kernels = [1, 3, 5, 7, 9, 11, 13, 15, 17]
+# strides = [1, 2, 3, 5, 7]
+# pads = [1, 2, 3]
+# num_filters = [12, 24, 36, 48, 96, 128]
 layouts = [None, 'NCDHW', 'NCHW', 'NCW', 'NDHWC', 'NHWC']
 pooling_types = ['max', 'avg']
 hidden_max = 500
@@ -29,13 +29,13 @@ hidden_min = 100
 cpu_num = 8
 DEBUG = False
 
-# batches = [1]
-# heights = [3]
-# widths = [3]
-# kernels = [1]
-# strides = [1]
-# pads = [0]
-# num_filters = [1]
+batches = [1]
+heights = [3]
+widths = [3]
+kernels = [1]
+strides = [1]
+pads = [0]
+num_filters = [1]
 
 
 repeat_times = 100
@@ -310,16 +310,16 @@ def train_test(filename):
     # TODO: feature_names
     return model
 
-def get_trained_model(num_trails, opt, filename):
+def get_trained_model(num_trails, opt, filename, cpu_num):
     print("Fit model for operator " + opt + "-" * 20)
     forward_filename = filename + "_forward"
     backward_filename = filename + "_backward"
 
     if not os.path.exists(forward_filename):
-        generate_training_data(num_trails, forward_filename, "forward", opt)
+        generate_training_data(num_trails, forward_filename, "forward", opt, cpu_num)
 
     if not os.path.exists(backward_filename):
-        generate_training_data(num_trails, backward_filename, "backward", opt)
+        generate_training_data(num_trails, backward_filename, "backward", opt, cpu_num)
 
     # forward
     forward_model = train_test(forward_filename)
@@ -330,7 +330,12 @@ def get_trained_model(num_trails, opt, filename):
 
 
 def copy_symbol(name, attrs):
+    op = None
     data = mx.symbol.Variable('data')
+    names = name.split("_")
+    if len(names) < 3:
+        return None
+    name = names[1]
     if name.startswith("conv"):
         op = mx.sym.Convolution(data=data,
                                 kernel=make_tuple(attrs['kernel']),
@@ -340,6 +345,7 @@ def copy_symbol(name, attrs):
     elif name.startswith("leaky"):
         op = mx.sym.LeakyReLU(data=data, act_type="leaky")  # same memory to our act, less than CuDNN one
     elif name.startswith("batchnorm"):
+        print("Copy batch norm----")
         op = mx.sym.BatchNorm(data=data, fix_gamma=True)
     elif name.startswith("pooling"):
         op = mx.sym.Pooling(data=data, pool_type=attrs['pool_type'],
@@ -347,7 +353,9 @@ def copy_symbol(name, attrs):
                             stride=make_tuple(attrs['stride']))
     elif name.startswith("fc"):
         op = mx.symbol.FullyConnected(data=data, num_hidden=int(attrs['num_hidden']))
-    else:
+    elif name.startswith("relu"):
+        op = mx.symbol.relu(data=data)
+    elif name.startswith("flatten"):
         op = mx.symbol.Flatten(data=data, name='flatten')
     return op
 
@@ -364,6 +372,7 @@ def generate_x(mod, dshape, num_core):
         height = dshape[2]
         width = dshape[3]
 
+    cpu_num = num_core
     if sym.name.startswith("conv"):
         # batch_size,height,width,kernel_value,stride_value,pad_value,num_filter,cpu_num
         kernel_value = make_tuple(attrs['kernel'])[0]
@@ -371,20 +380,19 @@ def generate_x(mod, dshape, num_core):
         pad_value = make_tuple(attrs['pad'])[0]
         num_filter = make_tuple(attrs['num_filter'])
         # cpu_num = int(os.environ['OMP_NUM_THREADS'])
-        cpu_num = num_core
         return [[batch_size, height, width, kernel_value, stride_value, pad_value, num_filter, cpu_num]]
     elif sym.name.startswith("batchnorm"):
         # batch_size,height,width
-        return [[batch_size, height, width]]
+        return [[batch_size, height, width, cpu_num]]
     elif sym.name.startswith("pooling"):
         # batch_size,height,width,kernel_value,stride_value
         kernel_value = make_tuple(attrs['kernel'])[0]
         stride_value = make_tuple(attrs['stride'])[0]
-        return [[batch_size, height, width, kernel_value, stride_value]]
+        return [[batch_size, height, width, kernel_value, stride_value, cpu_num]]
     elif sym.name.startswith("fullyconnected"):
         # batch_size,height,width,hidden_num
         hidden_num = int(attrs['num_hidden'])
-        return [[batch_size, height, width, hidden_num]]
+        return [[batch_size, height, width, hidden_num, cpu_num]]
 
 def get_opt_name(layer_name):
     opts = ['convolution', 'pooling', 'batchnorm', 'fullyconnected']
@@ -407,31 +415,33 @@ def predict_network(mod, models, org_dshape, num_core):
         if layer_name.endswith("output"):
             # print(layer_name)
 
-            if not layer_name.startswith("_"):
-                operator_sym = copy_symbol(layer_name, all_layers[layer_name].list_attr())
-            else:
+            operator_sym = copy_symbol(layer_name, all_layers[layer_name].list_attr())
+
+            if operator_sym is None:
                 operator_sym = all_layers[layer_name]
                 dshape = org_dshape
 
             # print(all_layers[layer_name].debug_str())
 
             # Execute to get shape information
+            print(layer_name, dshape)
             operator_mod = mx.mod.Module(symbol=operator_sym, label_names=None, context=device)
             operator_mod.bind(for_training=False, data_shapes=[('data', dshape)])
-            operator_mod.init_params()
-            operator_mod.forward(Batch([mx.random.uniform(-1, 1, dshape)]))
+            if layer_name != "softmax_output":
+                operator_mod.init_params()
+                operator_mod.forward(Batch([mx.random.uniform(-1, 1, dshape)]))
 
-            opt_name = get_opt_name(layer_name)
-            opt_t = 0
-            # plus layer is not counted
-            if opt_name:
-                x = generate_x(operator_mod, dshape, num_core)
-                forward_t = models[opt_name]["forward"].predict(x)
-                backward_t = models[opt_name]["backward"].predict(x)
-                opt_t = forward_t + 2 * backward_t if operator_mod.symbol.attr("mirror_stage") else forward_t + backward_t
+                opt_name = get_opt_name(layer_name)
+                opt_t = 0
+                # plus layer is not counted
+                if opt_name:
+                    x = generate_x(operator_mod, dshape, num_core)
+                    forward_t = models[opt_name]["forward"].predict(x)
+                    backward_t = models[opt_name]["backward"].predict(x)
+                    opt_t = forward_t + 2 * backward_t if operator_mod.symbol.attr("mirror_stage") else forward_t + backward_t
 
-            dshape = operator_mod.get_outputs()[0].shape
-            total_train_time += opt_t
+                dshape = operator_mod.get_outputs()[0].shape
+                total_train_time += opt_t
 
             # print(layer_name, dshape)
             # print("-" * 30)
@@ -440,31 +450,50 @@ def predict_network(mod, models, org_dshape, num_core):
 
 
 if __name__ == "__main__":
-    layers = [3, 24, 36, 3]
     batch_size = 256
     dshape = (batch_size, 3, 64, 64)
 
-    num_trails = 5000
+    num_trails = 1000
+    cpu_num = int(sys.argv[1])
 
-    conv_model= get_trained_model(num_trails, "conv2d", "conv2d_feature")
-    pool_model = get_trained_model(num_trails, "pooling", "pooling_feature")
-    fc_model = get_trained_model(num_trails, "fc", "fc_feature")
-    bn_model = get_trained_model(num_trails, "bn", "bn_feature")
-    operator_models = {
-        "convolution" : conv_model,
-        "pooling" : pool_model,
-        "fullyconnected" : fc_model,
-        "batchnorm" : bn_model,
-    }
+    conv_filename = "conv"
+    generate_training_data(num_trails, conv_filename + "_forward", "forward", "conv", cpu_num)
+    generate_training_data(num_trails, conv_filename + "_backward", "backward", "conv", cpu_num)
 
-    mod = get_model(dshape, layers=layers, checkpoint=0)
-    # allocate memory given the input data and label shapes
-    train_data = get_train_iter(dshape)
-    mod.bind(data_shapes=train_data.provide_data, label_shapes=train_data.provide_label)
-    # initialize parameters by uniform random numbers
-    mod.init_params(initializer=mx.init.Uniform(scale=.1))
-    # use SGD with learning rate 0.1 to train
-    mod.init_optimizer(optimizer='sgd', optimizer_params=(('learning_rate', 0.1),))
+    pooling_filename = "pooling"
+    generate_training_data(num_trails, pooling_filename + "_forward", "forward", "pooling", cpu_num)
+    generate_training_data(num_trails, pooling_filename + "_backward", "backward", "pooling", cpu_num)
 
-    predict_train_time = predict_network(mod, operator_models, dshape, 4)
-    print("Predict train time", predict_train_time)
+    bn_filename = "bn"
+    generate_training_data(num_trails, bn_filename + "_forward", "forward", "bn", cpu_num)
+    generate_training_data(num_trails, bn_filename + "_backward", "backward", "bn", cpu_num)
+
+    fc_filename = "fc"
+    generate_training_data(num_trails, fc_filename + "_forward", "forward", "fc", cpu_num)
+    generate_training_data(num_trails, fc_filename + "_backward", "backward", "fc", cpu_num)
+
+
+    # conv_model= get_trained_model(num_trails, "conv2d", "conv2d_feature", cpu_num)
+    # pool_model = get_trained_model(num_trails, "pooling", "pooling_feature", cpu_num)
+    # fc_model = get_trained_model(num_trails, "fc", "fc_feature", cpu_num)
+    # bn_model = get_trained_model(num_trails, "bn", "bn_feature", cpu_num)
+    # operator_models = {
+    #     "convolution" : conv_model,
+    #     "pooling" : pool_model,
+    #     "fullyconnected" : fc_model,
+    #     "batchnorm" : bn_model,
+    # }
+    #
+    # #mod = get_model(dshape, layers=layers, checkpoint=0)
+    # mod = getResNet50Model()
+    # # allocate memory given the input data and label shapes
+    # train_data = get_train_iter(dshape)
+    # mod.bind(data_shapes=train_data.provide_data, label_shapes=train_data.provide_label)
+    # # initialize parameters by uniform random numbers
+    # mod.init_params(initializer=mx.init.Uniform(scale=.1))
+    # # use SGD with learning rate 0.1 to train
+    # mod.init_optimizer(optimizer='sgd', optimizer_params=(('learning_rate', 0.1),))
+    #
+    #
+    # predict_train_time = predict_network(mod, operator_models, dshape, 4)
+    # print("Predict train time", predict_train_time)

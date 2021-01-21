@@ -21,7 +21,11 @@ ins_num = 1
 ins_mems = [32]
 ins_cores = [16]
 
-C = 1.2# TODO: test the accuracy of C
+ins_mems = [4, 8, 16, 32, 72]
+ins_cores = [2, 4, 8, 16, 36]
+
+C = 1.4 # TODO: test the accuracy of C
+
 layers = [3, 24, 36, 3]
 batch_size = 512
 dshape = (batch_size, 3, 64, 64)
