@@ -315,7 +315,7 @@ def get_trained_model(num_trails, opt, filename, cpu_num):
     print("Fit model for operator " + opt + "-" * 20)
     forward_filename = filename + "_forward"
     backward_filename = filename + "_backward"
-
+    print(forward_filename)
     if not os.path.exists(forward_filename):
         generate_training_data(num_trails, forward_filename, "forward", opt, cpu_num)
 
@@ -430,7 +430,6 @@ def predict_network(mod, models, org_dshape, num_core):
             # print(all_layers[layer_name].debug_str())
 
             # Execute to get shape information
-            print(layer_name, dshape)
             operator_mod = mx.mod.Module(symbol=operator_sym, label_names=None, context=device)
             operator_mod.bind(for_training=False, data_shapes=[('data', dshape)])
             if layer_name != "softmax_output":
@@ -445,6 +444,7 @@ def predict_network(mod, models, org_dshape, num_core):
 
                     forward_t = models[opt_name]["forward"].predict(x)
                     backward_t = models[opt_name]["backward"].predict(x)
+                    print(opt_name, ", forward ", forward_t, ", backward ", backward_t)
                     opt_t = forward_t + 2 * backward_t if operator_mod.symbol.attr("mirror_stage") else forward_t + backward_t
 
                 dshape = operator_mod.get_outputs()[0].shape
@@ -480,10 +480,10 @@ if __name__ == "__main__":
     # generate_training_data(num_trails, fc_filename + "_backward", "backward", "fc", cpu_num)
     #
 
-    conv_model= get_trained_model(num_trails, "conv2d", "conv2d_feature", cpu_num)
-    pool_model = get_trained_model(num_trails, "pooling", "pooling_feature", cpu_num)
-    fc_model = get_trained_model(num_trails, "fc", "fc_feature", cpu_num)
-    bn_model = get_trained_model(num_trails, "bn", "bn_feature", cpu_num)
+    conv_model= get_trained_model(num_trails, "conv", "conv", cpu_num)
+    pool_model = get_trained_model(num_trails, "pooling", "pooling", cpu_num)
+    fc_model = get_trained_model(num_trails, "fc", "fc", cpu_num)
+    bn_model = get_trained_model(num_trails, "bn", "bn", cpu_num)
     operator_models = {
         "conv" : conv_model,
         "pooling" : pool_model,
@@ -501,7 +501,7 @@ if __name__ == "__main__":
     # use SGD with learning rate 0.1 to train
     mod.init_optimizer(optimizer='sgd', optimizer_params=(('learning_rate', 0.1),))
 
-    predict_train_time = predict_network(mod, operator_models, dshape, 4)
+    predict_train_time = predict_network(mod, operator_models, dshape, 8)
     print("Predict train time", predict_train_time)
 
     start = time.time()
