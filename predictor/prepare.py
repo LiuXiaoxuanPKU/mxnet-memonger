@@ -382,7 +382,7 @@ def generate_x(mod, dshape, num_core):
         pad_value = make_tuple(attrs['pad'])[0]
         num_filter = make_tuple(attrs['num_filter'])
         # cpu_num = int(os.environ['OMP_NUM_THREADS'])
-        return [[batch_size, height, width, kernel_value, stride_value, pad_value, num_filter, cpu_num]]
+        return [[batch_size, height, width, cpu_num, kernel_value, stride_value, pad_value, num_filter]]
     elif name.startswith("batchnorm"):
         # batch_size,height,width
         return [[batch_size, height, width, cpu_num]]
@@ -390,11 +390,11 @@ def generate_x(mod, dshape, num_core):
         # batch_size,height,width,kernel_value,stride_value
         kernel_value = make_tuple(attrs['kernel'])[0]
         stride_value = make_tuple(attrs['stride'])[0]
-        return [[batch_size, height, width, kernel_value, stride_value, cpu_num]]
+        return [[batch_size, height, width, cpu_num, kernel_value, stride_value]]
     elif sym.name.startswith("dense"):
         # batch_size,height,width,hidden_num
         hidden_num = int(attrs['num_hidden'])
-        return [[batch_size, height, width, hidden_num, cpu_num]]
+        return [[batch_size, height, width, cpu_num, hidden_num]]
 
 def get_opt_name(layer_name):
     opts = ['conv', 'pooling', 'batchnorm', 'dense']
@@ -522,5 +522,5 @@ if __name__ == "__main__":
         mx.nd.waitall()
         end = time.time()
         time_per_img = (end - start)
-        print("Actual train time", predict_train_time)
+        print("Actual train time", time_per_img)
 
