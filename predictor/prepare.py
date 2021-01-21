@@ -441,7 +441,7 @@ def predict_network(mod, models, org_dshape, num_core):
                 # plus layer is not counted
                 if opt_name:
                     x = generate_x(operator_mod, dshape, num_core)
-
+                    print(layer_name, x)
                     forward_t = models[opt_name]["forward"].predict(x)
                     backward_t = models[opt_name]["backward"].predict(x)
                     print(opt_name, ", forward ", forward_t, ", backward ", backward_t)
@@ -490,6 +490,10 @@ if __name__ == "__main__":
         "dense" : fc_model,
         "batchnorm" : bn_model,
     }
+
+    print(conv_model['forward'].predict([[256, 64, 64, 8, 5, 1, 1, 256]]))
+    print('---------------------------')
+    exit()
 
     #mod = get_model(dshape, layers=layers, checkpoint=0)
     mod = getResNet50Model()
