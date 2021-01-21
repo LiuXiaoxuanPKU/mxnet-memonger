@@ -3,6 +3,7 @@ import random
 import sys
 import time
 
+import pandas as pd
 import numpy as np
 from sklearn import svm
 from sklearn.linear_model import LinearRegression
@@ -28,6 +29,7 @@ hidden_max = 500
 hidden_min = 100
 cpu_num = 8
 DEBUG = False
+SPLIT = "order"
 
 batches = [1]
 heights = [3]
@@ -269,14 +271,6 @@ def extract_features(file_name):
     return feature_names, x, y
 
 
-def split(X, y):
-    X_train, X_test, y_train, y_test = train_test_split(X, y,
-                                                        test_size=0.33,
-                                                        random_state=42)
-    print(np.array(y_test).shape)
-    return X_train, y_train, X_test, y_test
-
-
 def train(x, y, name="poly"):
     model = None
     print(x[0])
@@ -302,10 +296,36 @@ def test(x, y, model):
     acc = model.score(x, y)
     print("Test accuracy :", acc)
 
+def random_split(x, y):
+    train_x, test_x, train_y, test_y = train_test_split(x, y,
+                                                        test_size=0.33,
+                                                        random_state=42)
+    return train_x, train_y, test_x, test_y
+
+def order_split(x, y, feature_names):
+    test_per = 0.33
+    data = np.array([l + y[i] for i,l in enumerate(x)])
+    print(data.shape, feature_names)
+    df = pd.DataFrame(data, columns=feature_names)
+    print("Sort by feature values ", feature_names[0])
+    df = df.sort_values(by=[feature_names[0]])
+    train_data = df[:int(df.shape[0]*(1-test_per))].to_numpy()
+    test_data = df[int(df.shape[0]*(1-test_per)):].to_numpy()
+    train_x = train_data[:, :-1]
+    train_y = train_data[:, -1]
+    test_x = test_data[:, :-1]
+    test_y = test_data[:, -1]
+    return train_x, train_y, test_x, test_y
 
 def train_test(filename):
     feature_names, x, y = extract_features(filename)
-    train_x, train_y, test_x, test_y = split(x, y)
+    if SPLIT == "random":
+        train_x, train_y, test_x, test_y = random_split(x, y)
+    elif SPLIT == "order":
+        train_x, train_y, test_x, test_y = order_split(x, y, feature_names)
+    else:
+        print("[Error] Unknown split type ", SPLIT)
+        exit()
     model = train(train_x, train_y)
     test(test_x, test_y, model)
     # TODO: feature_names
@@ -480,10 +500,12 @@ if __name__ == "__main__":
     # generate_training_data(num_trails, fc_filename + "_backward", "backward", "fc", cpu_num)
     #
 
-    conv_model= get_trained_model(num_trails, "conv2d", "conv2d_feature", cpu_num)
-    pool_model = get_trained_model(num_trails, "pooling", "pooling_feature", cpu_num)
-    fc_model = get_trained_model(num_trails, "fc", "fc_feature", cpu_num)
-    bn_model = get_trained_model(num_trails, "bn", "bn_feature", cpu_num)
+    dir = "./old_results"
+    conv_model= get_trained_model(num_trails,  "conv", dir + "conv", cpu_num)
+    exit()
+    pool_model = get_trained_model(num_trails, "pooling", dir + "pooling", cpu_num)
+    fc_model = get_trained_model(num_trails, "fc", dir + "fc", cpu_num)
+    bn_model = get_trained_model(num_trails, "bn", dir + "bn", cpu_num)
     operator_models = {
         "conv" : conv_model,
         "pooling" : pool_model,
