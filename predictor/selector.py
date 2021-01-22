@@ -22,6 +22,7 @@ batch_size = 256
 dshape = (batch_size, 3, 64, 64)
 
 DEBUG = True
+NUM_ITER = 1000
 
 def predictNetMem(mod):
     act_mem = memonger.get_cost(mod.symbol, data=dshape)
@@ -97,7 +98,9 @@ def getInsMinCost(ins_price, ins_mem, ins_core, T):
             # does not match time constraint
             print("Take too long to train, predict train time %f, train time limit %f" % (t, T))
             continue
-        cur_cost = t * ins_price
+
+        cur_cost = t / 3600.0 * ins_price * NUM_ITER
+
         min_cost = min_cost if min_cost < cur_cost else cur_cost
         min_ckpt_mod = min_ckpt_mod if min_cost < cur_cost else cur_ckp_mod
 

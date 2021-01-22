@@ -78,7 +78,8 @@ def get_symbol(layers):
     return net
 
 def get_model(dshape, layers, checkpoint=0):
-    net = get_symbol(layers)
+    #net = get_symbol(layers)
+    net = getResNet50Model()
     old_cost = memonger.get_cost(net, data=dshape)
     print('Old feature map cost=%d MB' % old_cost)
     if checkpoint > 0:
