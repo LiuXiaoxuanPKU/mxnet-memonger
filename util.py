@@ -29,6 +29,23 @@ def getResNet50Model():
 
     return model
 
+def getAlexNet():
+    net = mx.gluon.model_zoo.vision.alexnet(pretrained=True)
+    sym, arg_params, aux_params = block2symbol(net)
+    # Need name = softmax so that label_names can handle softmax_label
+    mx_sym = mx.sym.SoftmaxOutput(data=sym, name='softmax')
+    model = mx.mod.Module(symbol=mx_sym, context=mx.cpu(),
+                          label_names=['softmax_label'])
+    return model
+
+def getVGG16():
+    net = mx.gluon.model_zoo.vision.vgg16(pretrained=True)
+    sym, arg_params, aux_params = block2symbol(net)
+    # Need name = softmax so that label_names can handle softmax_label
+    mx_sym = mx.sym.SoftmaxOutput(data=sym, name='softmax')
+    model = mx.mod.Module(symbol=mx_sym, context=mx.cpu(),
+                          label_names=['softmax_label'])
+    return model
 
 def ConvModule(sym, num_filter, kernel, pad=(0, 0), stride=(1, 1), fix_gamma=True):
     conv = mx.sym.Convolution(data=sym, kernel=kernel, stride=stride, pad=pad, num_filter=num_filter)
@@ -77,9 +94,17 @@ def get_symbol(layers):
     net = mx.symbol.SoftmaxOutput(data=fc1, name='softmax')
     return net
 
-def get_model(dshape, layers, checkpoint=0):
+
+def get_model(dshape, layers, checkpoint=0, name):
+    if name == "res":
     #net = get_symbol(layers)
-    net = getResNet50Model()
+        net = getResNet50Model()
+    elif name == "vgg":
+        net = getVGG16()
+    elif name == "alex":
+        net = getAlexNet()
+
+    net = net.symbol
     old_cost = memonger.get_cost(net, data=dshape)
     print('Old feature map cost=%d MB' % old_cost)
     if checkpoint > 0:
