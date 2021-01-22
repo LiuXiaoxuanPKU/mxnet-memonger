@@ -8,6 +8,7 @@ sys.path.append('../')
 from util import *
 
 DEVICE = mx.cpu()
+TABLE = None
 
 def copy_symbol(name, attrs):
     op = None
@@ -243,6 +244,81 @@ def generate_train(mod, shape, num_core):
     print(xs)
     build_lookup_table(xs)
 
+def read_file(opt, filename):
+    with open(filename, "r") as f:
+        lines = f.readlines()
+        for line in lines:
+            tokens = line.strip("\n").split(",")
+            print(tokens)
+            tokens = [float(x) for x in tokens]
+            print(TABLE[opt])
+            TABLE[opt][str(tokens[:-1])] = tokens[-1]
+
+def read_lookup_table():
+    opt_names = ["batchnorm", "pool", "conv", "dense"]
+    global TABLE
+    TABLE = {}
+    for opt in opt_names:
+        TABLE[opt] = {}
+        fwd_filename = "table_" + opt + "_forward"
+        bwd_filename = "table_" + opt + "_backward"
+        read_file(opt, fwd_filename)
+        read_file(opt, bwd_filename)
+
+def lookup(opt_name, x):
+    x = x[0]
+    x = [float(d) for d in x]
+    if TABLE is None:
+        read_lookup_table()
+    return TABLE[opt_name][str(x)]
+
+def predict_network(mod, org_dshape, num_core):
+    sym = mod.symbol
+    total_train_time = 0
+
+    dshape = org_dshape
+    from collections import namedtuple
+    Batch = namedtuple('Batch', ['data'])
+
+    print(type(mod._aux_params))
+    all_layers = sym.get_internals()
+    for layer_name in all_layers.list_outputs():
+        if layer_name.endswith("output"):
+            # print(layer_name)
+
+            operator_sym = copy_symbol(layer_name, all_layers[layer_name].list_attr())
+
+            if operator_sym is None:
+                operator_sym = all_layers[layer_name]
+                dshape = org_dshape
+
+            # print(all_layers[layer_name].debug_str())
+
+            # Execute to get shape information
+            print(layer_name, dshape)
+            operator_mod = mx.mod.Module(symbol=operator_sym, label_names=None, context=DEVICE)
+            operator_mod.bind(for_training=False, data_shapes=[('data', dshape)])
+            if layer_name != "softmax_output":
+                operator_mod.init_params()
+                operator_mod.forward(Batch([mx.random.uniform(-1, 1, dshape)]))
+
+                opt_name = get_opt_name(layer_name)
+                opt_t = 0
+                # plus layer is not counted
+                if opt_name:
+                    x = generate_x(operator_mod, dshape, num_core)
+
+                    forward_t = lookup(opt_name, x)
+                    backward_t = lookup(opt_name, x)
+                    opt_t = forward_t + 2 * backward_t if operator_mod.symbol.attr("mirror_stage") else forward_t + backward_t
+
+                dshape = operator_mod.get_outputs()[0].shape
+                total_train_time += opt_t
+
+            # print(layer_name, dshape)
+            # print("-" * 30)
+
+    return total_train_time
 
 if __name__ == "__main__":
     batch_size = int(sys.argv[1])
@@ -250,4 +326,34 @@ if __name__ == "__main__":
 
     mod = getResNet50Model()
     shape = (batch_size, 3, 64, 64)
-    generate_train(mod, shape, num_core)
+    # generate_train(mod, shape, num_core)
+    predict_t = predict_network(mod, shape, num_core)
+    print("Predict train time ", predict_t)
+
+    # allocate memory given the input data and label shapes
+    train_data = get_train_iter(shape)
+    mod.bind(data_shapes=train_data.provide_data, label_shapes=train_data.provide_label)
+    # initialize parameters by uniform random numbers
+    mod.init_params(initializer=mx.init.Uniform(scale=.1))
+    # use SGD with learning rate 0.1 to train
+    mod.init_optimizer(optimizer='sgd', optimizer_params=(('learning_rate', 0.1),))
+
+    repeat_times = 10
+    start = time.time()
+    for epoch in range(5):
+        print("Eopch---", epoch)
+        train_data.reset()
+        for i, batch in enumerate(train_data):
+            print("Batch---", i)
+            mod.forward(batch, is_train=True)  # compute predictions
+            mod.backward()  # compute gradients
+            mod.update()  # update parameters
+            if i == repeat_times:  # benchmark 100 iterations
+                break
+
+        # print('Epoch %d, Training %s' % (epoch, metric.get()))
+        mx.nd.waitall()
+        end = time.time()
+        time_per_img = (end - start) * 1.0 / repeat_times
+        print("Actual train time", time_per_img)
+
