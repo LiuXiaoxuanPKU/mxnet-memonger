@@ -307,14 +307,20 @@ def order_split(x, y, feature_names):
     data = np.array([l + y[i] for i,l in enumerate(x)])
     print(data.shape, feature_names)
     df = pd.DataFrame(data, columns=feature_names)
-    print("Sort by feature values ", feature_names[0])
-    df = df.sort_values(by=[feature_names[0]])
-    train_data = df[:int(df.shape[0]*(1-test_per))].to_numpy()
-    test_data = df[int(df.shape[0]*(1-test_per)):].to_numpy()
+    sort_feature = feature_names[1]
+    print("Sort by feature values ", sort_feature )
+    df = df.sort_values(by=sort_feature)
+    train_data = df.to_numpy()[:int(df.shape[0]*(1-test_per))]
+    test_data = df.to_numpy()[int(df.shape[0]*(1-test_per)):]
+    print(test_data[-1])
     train_x = train_data[:, :-1]
+    print (train_x[:5])
     train_y = train_data[:, -1]
+    print (train_y[:5])
     test_x = test_data[:, :-1]
+    print (test_x[:5])
     test_y = test_data[:, -1]
+    print (test_y[:5])
     return train_x, train_y, test_x, test_y
 
 def train_test(filename):
@@ -335,7 +341,7 @@ def get_trained_model(num_trails, opt, filename, cpu_num):
     print("Fit model for operator " + opt + "-" * 20)
     forward_filename = filename + "_forward"
     backward_filename = filename + "_backward"
-
+    print(forward_filename)
     if not os.path.exists(forward_filename):
         generate_training_data(num_trails, forward_filename, "forward", opt, cpu_num)
 
@@ -450,7 +456,6 @@ def predict_network(mod, models, org_dshape, num_core):
             # print(all_layers[layer_name].debug_str())
 
             # Execute to get shape information
-            print(layer_name, dshape)
             operator_mod = mx.mod.Module(symbol=operator_sym, label_names=None, context=device)
             operator_mod.bind(for_training=False, data_shapes=[('data', dshape)])
             if layer_name != "softmax_output":
@@ -462,9 +467,10 @@ def predict_network(mod, models, org_dshape, num_core):
                 # plus layer is not counted
                 if opt_name:
                     x = generate_x(operator_mod, dshape, num_core)
-
+                    print(layer_name, x)
                     forward_t = models[opt_name]["forward"].predict(x)
                     backward_t = models[opt_name]["backward"].predict(x)
+                    print(opt_name, ", forward ", forward_t, ", backward ", backward_t)
                     opt_t = forward_t + 2 * backward_t if operator_mod.symbol.attr("mirror_stage") else forward_t + backward_t
 
                 dshape = operator_mod.get_outputs()[0].shape
@@ -500,10 +506,10 @@ if __name__ == "__main__":
     # generate_training_data(num_trails, fc_filename + "_backward", "backward", "fc", cpu_num)
     #
 
-    dir = "./old_results"
-    conv_model= get_trained_model(num_trails,  "conv", dir + "conv", cpu_num)
-    exit()
+    dir = "./"
     pool_model = get_trained_model(num_trails, "pooling", dir + "pooling", cpu_num)
+    exit()
+    conv_model= get_trained_model(num_trails,  "conv", dir + "conv", cpu_num)
     fc_model = get_trained_model(num_trails, "fc", dir + "fc", cpu_num)
     bn_model = get_trained_model(num_trails, "bn", dir + "bn", cpu_num)
     operator_models = {
@@ -512,6 +518,10 @@ if __name__ == "__main__":
         "dense" : fc_model,
         "batchnorm" : bn_model,
     }
+
+    print(conv_model['forward'].predict([[256, 64, 64, 8, 5, 1, 1, 256]]))
+    print('---------------------------')
+    exit()
 
     #mod = get_model(dshape, layers=layers, checkpoint=0)
     mod = getResNet50Model()
@@ -523,7 +533,7 @@ if __name__ == "__main__":
     # use SGD with learning rate 0.1 to train
     mod.init_optimizer(optimizer='sgd', optimizer_params=(('learning_rate', 0.1),))
 
-    predict_train_time = predict_network(mod, operator_models, dshape, 4)
+    predict_train_time = predict_network(mod, operator_models, dshape, 8)
     print("Predict train time", predict_train_time)
 
     start = time.time()

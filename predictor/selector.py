@@ -1,4 +1,6 @@
 import os
+import gc
+import psutil
 import random
 import time
 from importlib import reload
@@ -12,21 +14,35 @@ import memonger
 
 ins_num = 5
 ins_prices = [0.085, 0.17, 0.34, 0.68, 1.53]
+#ins_mems = [4, 8, 16, 32, 72]
+#ins_cores = [2, 4, 8, 16, 36]
+ins_prices = [0.68]
+ins_num = 1
+ins_mems = [32]
+ins_cores = [16]
+
 ins_mems = [4, 8, 16, 32, 72]
 ins_cores = [2, 4, 8, 16, 36]
 
 C = 1.4 # TODO: test the accuracy of C
 
 layers = [3, 24, 36, 3]
-batch_size = 256
+batch_size = 512
 dshape = (batch_size, 3, 64, 64)
 
 DEBUG = True
 NUM_ITER = 1000
 
+def cpuStats():
+    pid = os.getpid()
+    py = psutil.Process(pid)
+    memoryUse = py.memory_info()[0] / 2. ** 30  # memory use in GB...I think
+    # print('memory GB:', memoryUse)
+    return memoryUse
+
 def predictNetMem(mod):
     act_mem = memonger.get_cost(mod.symbol, data=dshape)
-    return act_mem * 1.0 / 1024 / 1024 / 1024 + C
+    return act_mem * 1.0 / 1024 + C
 
 def predictNetTime(mod, dshape, num_core):
     # allocate memory given the input data and label shapes
@@ -55,24 +71,32 @@ def predictNetTime(mod, dshape, num_core):
         os.environ['OMP_NUM_THREADS'] = str(num_core)
         # Reimport to make environmental variable work
         reload(mx)
+        mx.cpu().empty_cache()
 
 
         data_iter = mx.io.NDArrayIter(data=mx.random.uniform(-1, 1, dshape), label=mx.random.uniform(-1, 1, (dshape[0])), batch_size=dshape[0])
         for batch in data_iter:
             start = time.time()
-            mod.forward(batch)
+            mod.forward(batch, is_train=True)
+            mx.nd.waitall()
             mod.backward()
             mx.nd.waitall()
+            mem = cpuStats()
             end = time.time()
             predict_train_time = end - start
+        del mod
+        del data_iter
+        gc.collect()
 
-    return predict_train_time
+    return predict_train_time, mem
 
 def getAllCkptMods():
-    thresholds = range(200, 1000, 500)
+    thresholds = range(1, 2, 5)
     models = []
     for threshold in thresholds:
-        models.append(util.get_model(dshape, layers=layers, checkpoint=threshold))
+        mod = util.get_model(dshape, layers=layers, checkpoint=threshold)
+        models.append(mod)
+        print(mod.symbol.debug_str())
     return models
 
 
@@ -85,15 +109,21 @@ def getInsMinCost(ins_price, ins_mem, ins_core, T):
     min_cost = 10000000
     mods = getAllCkptMods()
     min_ckpt_mod = None
+    min_t = 0
+    min_mem = 0
     # enumerate different ckpt policies
     for cur_ckp_mod in mods:
         min_ckpt_mod = None
         mem = predictNetMem(cur_ckp_mod)
+        print("Predict Memory:", mem)
+        t, mem = predictNetTime(cur_ckp_mod, dshape, ins_core)
+        print("Actual Memory:", mem)
+
         if mem > ins_mem:
             # use too much memory
             print("Use too much memory")
             continue
-        t = predictNetTime(cur_ckp_mod, dshape, ins_core)
+
         if t > T:
             # does not match time constraint
             print("Take too long to train, predict train time %f, train time limit %f" % (t, T))
@@ -101,29 +131,37 @@ def getInsMinCost(ins_price, ins_mem, ins_core, T):
 
         cur_cost = t / 3600.0 * ins_price * NUM_ITER
 
-        min_cost = min_cost if min_cost < cur_cost else cur_cost
+        print("Cur cost", t, ins_price, cur_cost, min_cost)
         min_ckpt_mod = min_ckpt_mod if min_cost < cur_cost else cur_ckp_mod
+        min_t = min_t if min_cost < cur_cost else t
+        min_mem = min_mem if min_cost < cur_cost else mem
+        min_cost = min_cost if min_cost < cur_cost else cur_cost
 
     if min_ckpt_mod is None:
         print("[Error] Cannot find instance meet the training time constraint")
-    return min_cost, min_ckpt_mod
+    return min_cost, min_ckpt_mod, min_t, min_mem
 
 
 def getInstance(T):
-    min_cost = 0
+    min_cost = 100000
     min_ins_idx = -1
+    min_t = -1
+    min_mem = -1
     for i in range(ins_num):
-        ins_cost, _ = getInsMinCost(ins_prices[i], ins_mems[i], ins_cores[i], T)
+        ins_cost, _, ins_t, ins_mem = getInsMinCost(ins_prices[i], ins_mems[i], ins_cores[i], T)
         if ins_cost < min_cost:
             min_cost = ins_cost
             min_ins_idx = i
-    return min_ins_idx, min_cost
+            min_t = ins_t
+            min_mem = ins_mem
+
+    return min_ins_idx, min_cost, min_t, min_mem
 
 
 if __name__ == "__main__":
     print("----------------")
     # our method
-    min_idx, min_cost = getInstance(100)
+    min_idx, min_cost, min_t, min_mem = getInstance(100)
 
     # random selection
     rand_idx = 0
@@ -134,9 +172,13 @@ if __name__ == "__main__":
     # just fit selection
     no_ckpt_mod = util.get_model(dshape, layers, checkpoint=0)
     mod_mem_no_ckpt = predictNetMem(no_ckpt_mod)
-    fit_idx = [i for i, x in enumerate(ins_mems) if x > mod_mem_no_ckpt][0]
+    print("Predict No Checkpoint Mem", mod_mem_no_ckpt)
+    fit_inst = [i for i, x in enumerate(ins_mems) if x > mod_mem_no_ckpt]
+    fit_idx = -1 if len(fit_inst) == 0 else fit_inst[0]
+    mod_t_no_ckpt, mem = predictNetTime(no_ckpt_mod, dshape, ins_cores[fit_idx])
+    print("Actual No Checkpoint Mem", mem)
 
-    print("Auto Select %d %f, Just fix Select %d" % (min_idx, min_cost, fit_idx))
+    print("Auto Select %d %f %f %f,\n Just fix Select %d %f %f %f" % (min_idx, min_cost, min_t, min_mem, fit_idx, ins_prices[fit_idx] * mod_t_no_ckpt, mod_t_no_ckpt, ins_mems[fit_idx]))
 
 
 
