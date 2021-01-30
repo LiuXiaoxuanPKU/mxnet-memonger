@@ -95,16 +95,19 @@ def get_symbol(layers):
     return net
 
 
-def get_model(dshape, layers, checkpoint=0, name):
-    if name == "res":
+def get_model(dshape, checkpoint, name):
+    if name == "res50":
     #net = get_symbol(layers)
         net = getResNet50Model()
+        net = net.symbol
     elif name == "vgg":
-        net = getVGG16()
-    elif name == "alex":
-        net = getAlexNet()
+        net, arg_params, aux_params = mx.model.load_checkpoint("vgg16", 0)
+    elif name == "res152":
+        net, arg_params, aux_params = mx.model.load_checkpoint("resnet-152", 0)
+    else:
+        print("Unsupport network type ", name)
+        raise NotImplementedError
 
-    net = net.symbol
     old_cost = memonger.get_cost(net, data=dshape)
     print('Old feature map cost=%d MB' % old_cost)
     if checkpoint > 0:
@@ -128,8 +131,10 @@ def get_train_iter(dshape):
     std_rgb = [58.393, 57.12, 57.375]
 
     return mx.io.ImageRecordIter(
-        path_imgrec='/home/ec2-user/mxnet-memonger/tiny-imagenet_train.rec',
-        path_imgidx='/home/ec2-user/mxnet-memonger/tiny-imagenet_train.idx',
+        # path_imgrec='/home/ec2-user/mxnet-memonger/tiny-imagenet_train.rec',
+        # path_imgidx='/home/ec2-user/mxnet-memonger/tiny-imagenet_train.idx',
+        path_imgrec='/Users/xiaoxuanliu/Documents/UCB/research/mxnet-memonger/tiny-imagenet_train.rec',
+        path_imgidx='/Users/xiaoxuanliu/Documents/UCB/research//mxnet-memonger/tiny-imagenet_train.idx',
         preprocess_threads=36,
         shuffle=True,
         batch_size=dshape[0],
@@ -154,4 +159,4 @@ def get_train_iter(dshape):
     )
 
 if __name__ == "__main__":
-    getResNet50Sym()
+    get_model((128,3,64,64), 0, "res152")
