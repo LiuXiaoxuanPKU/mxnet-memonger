@@ -84,8 +84,8 @@ def make_mirror_plan(sym, threshold, plan_info=None, **kwargs):
             local_size += prod(shape) * 4
             sb._set_attr(force_mirroring='True')
 
-        if sb.attr('mirror_stage') is not None:
-            stage = sb.attr('mirror_stage')
+        if sb.attr('__force_mirroring__') is not None:
+            stage = sb.attr('__force_mirroring__')
             if stage == 'True' or stage != last_stage:
                 if local_size > threshold:
                     save_size += prod(shape) * 4
@@ -93,13 +93,16 @@ def make_mirror_plan(sym, threshold, plan_info=None, **kwargs):
                     local_size = 0
                     stage_decision = 'False'
                     sb._set_attr(force_mirroring=stage_decision)
+                    print("set mirror stage %s, %s", sb.name, stage_decision)
                 else:
+                    print("set mirror stage %s, %s", sb.name, stage_decision)
                     stage_decision = 'True'
                     pass
                 last_stage = stage
             elif stage == last_stage and stage_decision == 'False':
                 save_size += prod(shape) * 4
                 sb._set_attr(force_mirroring=stage_decision)
+                print("set mirror stage %s, %s", sb.name, stage_decision)
 
     if plan_info is not None:
         plan_info['max_size'] = max_size

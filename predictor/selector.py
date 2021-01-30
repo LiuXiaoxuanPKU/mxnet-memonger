@@ -16,22 +16,19 @@ ins_num = 5
 ins_prices = [0.085, 0.17, 0.34, 0.68, 1.53]
 #ins_mems = [4, 8, 16, 32, 72]
 #ins_cores = [2, 4, 8, 16, 36]
-ins_prices = [0.68]
+ins_prices =[0.34]
 ins_num = 1
-ins_mems = [32]
-ins_cores = [16]
-
-ins_mems = [4, 8, 16, 32, 72]
-ins_cores = [2, 4, 8, 16, 36]
+ins_mems = [8]
+ins_cores = [4]
 
 C = 1.4 # TODO: test the accuracy of C
 
 layers = [3, 24, 36, 3]
-batch_size = 512
+batch_size = 2048
 dshape = (batch_size, 3, 64, 64)
 
 DEBUG = True
-NUM_ITER = 1000
+NUM_ITER = 10000
 
 def cpuStats():
     pid = os.getpid()
@@ -91,12 +88,12 @@ def predictNetTime(mod, dshape, num_core):
     return predict_train_time, mem
 
 def getAllCkptMods():
-    thresholds = range(1, 2, 5)
+    thresholds = range(700,2000, 500)
     models = []
     for threshold in thresholds:
         mod = util.get_model(dshape, layers=layers, checkpoint=threshold)
         models.append(mod)
-        print(mod.symbol.debug_str())
+#        print(mod.symbol.debug_str())
     return models
 
 
@@ -116,8 +113,8 @@ def getInsMinCost(ins_price, ins_mem, ins_core, T):
         min_ckpt_mod = None
         mem = predictNetMem(cur_ckp_mod)
         print("Predict Memory:", mem)
-        t, mem = predictNetTime(cur_ckp_mod, dshape, ins_core)
-        print("Actual Memory:", mem)
+        t, act_mem = predictNetTime(cur_ckp_mod, dshape, ins_core)
+        print("Actual Memory:", act_mem)
 
         if mem > ins_mem:
             # use too much memory
@@ -178,7 +175,7 @@ if __name__ == "__main__":
     mod_t_no_ckpt, mem = predictNetTime(no_ckpt_mod, dshape, ins_cores[fit_idx])
     print("Actual No Checkpoint Mem", mem)
 
-    print("Auto Select %d %f %f %f,\n Just fix Select %d %f %f %f" % (min_idx, min_cost, min_t, min_mem, fit_idx, ins_prices[fit_idx] * mod_t_no_ckpt, mod_t_no_ckpt, ins_mems[fit_idx]))
+    print("Auto Select %d %f %f %f,\nJust fix Select %d %f %f %f" % (min_idx, min_cost, min_t, min_mem, fit_idx, ins_prices[fit_idx] * mod_t_no_ckpt / 3600.0 * NUM_ITER , mod_t_no_ckpt, ins_mems[fit_idx]))
 
 
 

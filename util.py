@@ -95,7 +95,7 @@ def get_symbol(layers):
     return net
 
 
-def get_model(dshape, layers, checkpoint=0, name):
+def get_model(dshape, checkpoint, name):
     if name == "res":
     #net = get_symbol(layers)
         net = getResNet50Model()
