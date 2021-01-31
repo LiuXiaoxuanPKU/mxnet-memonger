@@ -97,7 +97,6 @@ def get_symbol(layers):
 
 def get_model(dshape, checkpoint, name):
     if name == "res50":
-    #net = get_symbol(layers)
         net = getResNet50Model()
         net = net.symbol
     elif name == "vgg":
