@@ -1,0 +1,76 @@
+Old feature map cost=1771 MB
+[DataDesc[softmax_label,(128,),<class 'numpy.float32'>,NCHW]]
+
+Profile Statistics:
+	Note the difference in units for different entries.
+Device Storage
+=================
+Name                          Total Count    Min Use  (kB)    Max Use  (kB)    Avg Use  (kB)
+----                          -----------    -------------    -------------    -------------
+Memory: cpu/0                        8189           0.0000     2654966.7500     1327483.3750
+Memory: cpu pinned/                    40        6291.4561      125839.3594       59773.9531
+
+MXNET_C_API
+=================
+Name                          Total Count        Time (ms)    Min Time (ms)    Max Time (ms)    Avg Time (ms)
+----                          -----------        ---------    -------------    -------------    -------------
+MXDataIterNext                         10        4142.5981           0.0040        1104.0649         414.2598
+MXNDArrayWaitAll                        1        3448.0669        3448.0669        3448.0669        3448.0669
+MXNDArrayLoad                           1         122.9010         122.9010         122.9010         122.9010
+_SimpleBindImpl                         2         117.9320          37.6840          80.2480          58.9660
+MXImperativeInvokeEx                 3096          72.6060           0.0080           2.3870           0.0235
+MXDataIterCreateIter                    1          65.7160          65.7160          65.7160          65.7160
+MXSymbolCreateFromFile                  1          22.3160          22.3160          22.3160          22.3160
+MXNet_C_API_Calls                   22045          22.0780           0.0340          22.0780          11.0220
+MXExecutorBackwardEx                   10          15.3170           0.7980           2.6350           1.5317
+MXExecutorForward                      10          15.1600           0.8240           2.2170           1.5160
+MXNDArrayFree                        2803          11.6910           0.0000           0.2750           0.0042
+MXExecutorPrint                         2          11.5170           4.2990           7.2180           5.7585
+MXNDArrayGetShapeEx                  7244           8.6710           0.0000           0.0390           0.0012
+MXSymbolListAttr                        3           7.6810           2.0290           3.4750           2.5603
+MXExecutorFree                          1           4.3380           4.3380           4.3380           4.3380
+MXNDArrayCreateEx                     769           3.9140           0.0030           0.0830           0.0051
+MXNDArrayGetStorageType              3734           2.7620           0.0000           0.0160           0.0007
+MXNDArrayGetDType                    2922           2.0830           0.0000           0.0110           0.0007
+MXNDArrayGetContext                  1382           1.1020           0.0000           0.0110           0.0008
+MXDataIterGetLabel                     10           0.6950           0.0030           0.5590           0.0695
+MXDataIterGetData                      10           0.0810           0.0020           0.0140           0.0081
+MXExecutorOutputs                      12           0.0410           0.0020           0.0050           0.0034
+MXDataIterGetPadNum                    10           0.0150           0.0000           0.0030           0.0015
+MXDataIterGetIndex                     10           0.0120           0.0000           0.0020           0.0012
+MXSymbolGetAttr                         1           0.0040           0.0040           0.0040           0.0040
+MXNet_C_API_Concurrency             44090           0.0000           0.0000           0.0010           0.0000
+
+operator
+=================
+Name                          Total Count        Time (ms)    Min Time (ms)    Max Time (ms)    Avg Time (ms)
+----                          -----------        ---------    -------------    -------------    -------------
+_backward_Convolution                1550        3535.5100           0.9590          11.3040           2.2810
+Convolution                          1550        1948.2150           0.4810           5.6520           1.2569
+BatchNorm                            1530         505.9110           0.0580           6.4870           0.3307
+_backward_BatchNorm                  1530         451.1290           0.0800           2.5680           0.2949
+_backward_Activation                 1520         439.4840           0.0700           3.0100           0.2891
+elemwise_add                          500         193.3660           0.1070           1.4710           0.3867
+add_n                                 500         171.8400           0.1350           1.2590           0.3437
+Activation                           1520         151.9180           0.0210           1.9660           0.0999
+SetValueOp                           2470          89.6940           0.0040           1.2240           0.0363
+FullyConnected                         10          54.3220           0.4990          49.5860           5.4322
+_random_uniform                       156          48.0970           0.0230           1.7540           0.3083
+_zeros                                769          31.6520           0.0060           1.0540           0.0412
+CopyCPU2CPU                          1558          28.5850           0.0040           0.5300           0.0183
+DeleteVariable                       3390          22.4790           0.0020           1.2270           0.0066
+_backward_FullyConnected               10          13.7380           1.1810           2.0380           1.3738
+_backward_Pooling                      20          11.2750           0.2920           0.8590           0.5638
+Pooling                                20          10.2210           0.0560           1.2980           0.5110
+DeleteOperator                       1031           9.2580           0.0030           0.2650           0.0090
+SetupExec                            2062           6.5370           0.0020           0.0190           0.0032
+ResourceParallelRandomSetSeed               1           4.9980           4.9980           4.9980           4.9980
+_full                                 613           3.3950           0.0040           0.0280           0.0055
+SoftmaxOutput                          10           1.4580           0.1230           0.3350           0.1458
+_zeros_without_dtype                   10           0.9900           0.0920           0.1110           0.0990
+Flatten                                10           0.7740           0.0420           0.3860           0.0774
+_backward_SoftmaxOutput                10           0.3090           0.0250           0.0700           0.0309
+WaitForVar                             12           0.1060           0.0060           0.0110           0.0088
+_backward_copy                         10           0.0880           0.0070           0.0130           0.0088
+
+
