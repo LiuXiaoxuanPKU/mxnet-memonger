@@ -16,7 +16,7 @@ ins_num = 5
 ins_prices = [0.085, 0.17, 0.34, 0.68, 1.53]
 #ins_mems = [4, 8, 16, 32, 72]
 #ins_cores = [2, 4, 8, 16, 36]
-ins_prices =[0.34]
+ins_prices =[0.17]
 ins_num = 1
 ins_mems = [8]
 ins_cores = [4]
@@ -24,7 +24,7 @@ ins_cores = [4]
 C = 1.4 # TODO: test the accuracy of C
 
 layers = [3, 24, 36, 3]
-batch_size = 2048
+batch_size = 512
 dshape = (batch_size, 3, 64, 64)
 
 DEBUG = True
@@ -88,10 +88,10 @@ def predictNetTime(mod, dshape, num_core):
     return predict_train_time, mem
 
 def getAllCkptMods():
-    thresholds = range(700,2000, 500)
+    thresholds = range(200,2000, 200)
     models = []
     for threshold in thresholds:
-        mod = util.get_model(dshape, layers=layers, checkpoint=threshold)
+        mod = util.get_model(dshape, checkpoint=threshold, name="res")
         models.append(mod)
 #        print(mod.symbol.debug_str())
     return models
@@ -167,7 +167,7 @@ if __name__ == "__main__":
     max_idx = ins_num - 1
 
     # just fit selection
-    no_ckpt_mod = util.get_model(dshape, layers, checkpoint=0)
+    no_ckpt_mod = util.get_model(dshape, checkpoint=0, name='res')
     mod_mem_no_ckpt = predictNetMem(no_ckpt_mod)
     print("Predict No Checkpoint Mem", mod_mem_no_ckpt)
     fit_inst = [i for i, x in enumerate(ins_mems) if x > mod_mem_no_ckpt]
