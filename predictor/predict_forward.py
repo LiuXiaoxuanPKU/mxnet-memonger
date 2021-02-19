@@ -4,7 +4,7 @@ import sys
 import mxnet as mx
 from mxnet import profiler
 
-sys.path.append('../')
+sys.path.append('/Users/xiaoxuanliu/Documents/UCB/research/mxnet-memonger')
 import util
 
 
@@ -15,10 +15,10 @@ profiler.set_config(profile_all=True,
 
 
 if __name__ == "__main__":
-    dshape = (1280, 3, 64, 64)
-    repeat_times = 10
+    dshape = (64, 3, 224, 224)
+    repeat_times = 2
 
-    mod = util.getResNet50Model()
+    mod = util.get_model(dshape, 0, "res50")
     train_data = util.get_train_iter(dshape)
     mod.bind(data_shapes=train_data.provide_data, label_shapes=train_data.provide_label)
     # initialize parameters by uniform random numbers
@@ -29,6 +29,7 @@ if __name__ == "__main__":
 
     i = 0
     for batch in train_data:
+        print("-------")
         if i == 1:
             profiler.set_state('run')
         mod.forward(batch, is_train=True)
