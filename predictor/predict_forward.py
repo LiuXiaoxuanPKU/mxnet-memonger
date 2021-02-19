@@ -15,12 +15,22 @@ profiler.set_config(profile_all=True,
 
 
 if __name__ == "__main__":
-    dshape = (1280, 3, 64, 64)
+    dshape = (128, 3, 64, 64)
     repeat_times = 10
 
-    mod = util.getResNet50Model()
+    model_name = "res152"
+    mod = util.get_model(dshape,0,model_name)
     train_data = util.get_train_iter(dshape)
-    mod.bind(data_shapes=train_data.provide_data, label_shapes=train_data.provide_label)
+    if model_name == "vgg":
+        label_name = "prob_label"
+    else:
+        label_name = "softmax_label"
+    print(train_data.provide_label)
+    label = mx.io.DataDesc(name=label_name,
+            shape = train_data.provide_label[0].shape,
+            dtype = train_data.provide_label[0].dtype,
+            layout = train_data.provide_label[0].layout)
+    mod.bind(data_shapes=train_data.provide_data, label_shapes=[label])
     # initialize parameters by uniform random numbers
     mod.init_params(initializer=mx.init.Uniform(scale=.1))
     # use SGD with learning rate 0.1 to train
@@ -32,7 +42,6 @@ if __name__ == "__main__":
         if i == 1:
             profiler.set_state('run')
         mod.forward(batch, is_train=True)
-        mx.nd.waitall()
         mod.backward()
         i += 1
         if i == repeat_times:
@@ -40,6 +49,6 @@ if __name__ == "__main__":
 
     mx.nd.waitall()
     profiler.set_state('stop')
-    #profiler.dump()
+    profiler.dump()
     print(profiler.dumps())
 
