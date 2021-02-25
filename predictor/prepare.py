@@ -12,8 +12,8 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import PolynomialFeatures
 from sklearn.preprocessing import StandardScaler
 
-# sys.path.append('/home/ec2-user/mxnet-memonger')
-sys.path.append('/Users/xiaoxuanliu/Documents/UCB/research/mxnet-memonger')
+sys.path.append('/home/ec2-user/mxnet-memonger')
+#sys.path.append('/Users/xiaoxuanliu/Documents/UCB/research/mxnet-memonger')
 from util import *
 from ast import literal_eval as make_tuple
 
@@ -52,9 +52,9 @@ random.seed(42)
 
 
 C_conv = 1 / 300.0 * 1.35
-C_pool = 2
+C_pool = 28 / 3
 C_bn = 1 / 2.5 * 0.7
-C_relu = 1
+C_relu = 0.308
 
 mem_bandwidth = 4.8 * pow(10, 9)
 cpu_freq = 1.8 * pow(10, 9)
@@ -82,7 +82,8 @@ def cost_model_predict(name, data):
         flops = read_num
         forward_t = C_pool * cost_mode(read_num, write_num, flops)
         backward_t = forward_t
-        return forward_t, backward_t
+        #return forward_t, backward_t
+        return 0,0
     elif name == "batchnorm":
         write_num = data['N'] * data['C'] * data['H'] * data['W']
         read_num = data['N'] * data['C'] * data['H'] * data['W'] * 2
@@ -94,7 +95,7 @@ def cost_model_predict(name, data):
         write_num = data['N'] * data['IC'] * data['H'] * data['W']
         read_num = write_num
         flops =read_num
-        forward_t = C_bn * cost_mode(read_num, write_num, flops)
+        forward_t = C_relu * cost_mode(read_num, write_num, flops)
         backward_t = forward_t
         return forward_t, backward_t
     else:
@@ -254,6 +255,7 @@ def generate_x(mod, dshape, num_core):
         #     data['layout'] = attrs['layout']
         # data['pad'] = make_tuple(attrs['dilate'])
         name = "pool"
+        print(data)
         return [[batch_size, height, width, cpu_num, kernel, stride]], data, name
     elif name.find("dense") != -1:
         # batch_size,height,width,hidden_num
