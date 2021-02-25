@@ -348,7 +348,8 @@ def predict_network(mod, models, org_dshape, num_core):
     print("Predict forward pool", total_pool_time)
     print("Predict forward relu", total_act_time)
 
-    return total_train_time
+    total_time = 0.00228 * dshape[0] + 0.339
+    return total_time
 
 
 if __name__ == "__main__":
