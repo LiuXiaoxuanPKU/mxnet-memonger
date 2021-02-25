@@ -12,7 +12,7 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import PolynomialFeatures
 from sklearn.preprocessing import StandardScaler
 
-sys.path.append('/Users/xiaoxuanliu/Documents/UCB/research/mxnet-memonger')
+sys.path.append('/home/ec2-user/mxnet-memonger')
 from util import *
 from ast import literal_eval as make_tuple
 
@@ -50,12 +50,17 @@ metric = mx.metric.Loss()
 random.seed(42)
 
 
-C_conv = 1
+C_conv = 1 / 300.0 * 1.35
 C_pool = 2
-C_bn = 260
+C_bn = 1 / 2.5 * 0.7
+
+mem_bandwidth = 4.8 * pow(10, 9)
+cpu_freq = 1.8 * pow(10, 9)
+flop_per_cycle = 32
+conv_cnt = 0
 
 def cost_mode(read_num, write_num, flops):
-    return (max(read_num, flops) + write_num)
+    return (max(read_num / mem_bandwidth, flops / (flop_per_cycle * cpu_freq)) + write_num / mem_bandwidth)
 
 def cost_model_predict(name, data):
     if name == "conv":
@@ -63,7 +68,7 @@ def cost_model_predict(name, data):
         output_h = int((data['H'] + 2 * data['pad'][1] - data['kernel'][1] + 1) / data['stride'][1])
         write_num = output_w * output_h * data['N'] * data['OC']
         read_num = write_num * data['kernel'][0] * data['kernel'][1] * data['IC']
-        flops = data['H'] * data['W'] * data['kernel'][0] * data['kernel'][1] * data['IC'] * data['OC'] * data['N'] * 2
+        flops = read_num
         forward_t = C_conv * cost_mode(read_num, write_num, flops)
         backward_t = forward_t * 2
         return forward_t, backward_t
@@ -500,7 +505,7 @@ def predict_network(mod, models, org_dshape, num_core):
         if layer_name.endswith("output"):
             # print(layer_name)
 
-            print(all_layers[layer_name].list_attr())
+#            print(all_layers[layer_name].list_attr())
             operator_sym = copy_symbol(layer_name, all_layers[layer_name].list_attr())
 
             if operator_sym is None:
@@ -521,11 +526,14 @@ def predict_network(mod, models, org_dshape, num_core):
                 # plus layer is not counted
                 if opt_name:
                     x, data, name = generate_x(operator_mod, dshape, num_core)
+                    print(data)
                     forward_t, backward_t = cost_model_predict(name, data)
                     if name == "batchnorm":
                         total_bn_time += forward_t
                     if name == "conv":
                         total_conv_time += forward_t
+                        global conv_cnt
+                        conv_cnt += 1 
 
                     # x = generate_x(operator_mod, dshape, num_core)
                     # print(layer_name, x)
@@ -546,7 +554,7 @@ def predict_network(mod, models, org_dshape, num_core):
 
 
 if __name__ == "__main__":
-    batch_size = 256
+    batch_size = 450
     dshape = (batch_size, 3, 224, 224)
 
     num_trails = 1000
@@ -599,6 +607,7 @@ if __name__ == "__main__":
     # predict_train_time = predict_network(mod, operator_models, dshape, 8)
     predict_train_time = predict_network(mod, None, dshape, 8)
     print("Predict train time", predict_train_time)
+    print("Conv cnt", conv_cnt)
 
     # start = time.time()
     # for epoch in range(5):

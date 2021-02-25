@@ -4,7 +4,7 @@ import sys
 import mxnet as mx
 from mxnet import profiler
 
-sys.path.append('../')
+sys.path.append('/Users/xiaoxuanliu/Documents/UCB/research/mxnet-memonger')
 import util
 
 
@@ -15,11 +15,11 @@ profiler.set_config(profile_all=True,
 
 
 if __name__ == "__main__":
-    dshape = (128, 3, 64, 64)
+    dshape = (100, 3, 224, 224)
     repeat_times = 10
 
     model_name = "res152"
-    mod = util.get_model(dshape,0,model_name)
+    mod = util.get_model(dshape, 0, "res50")
     train_data = util.get_train_iter(dshape)
     if model_name == "vgg":
         label_name = "prob_label"
@@ -39,6 +39,7 @@ if __name__ == "__main__":
 
     i = 0
     for batch in train_data:
+        print("-------")
         if i == 1:
             profiler.set_state('run')
         mod.forward(batch, is_train=True)
