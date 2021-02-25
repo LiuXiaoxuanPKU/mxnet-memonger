@@ -27,7 +27,7 @@ layers = [3, 24, 36, 3]
 batch_size = 512
 dshape = (batch_size, 3, 64, 64)
 
-DEBUG = True
+DEBUG = False
 NUM_ITER = 10000
 
 def cpuStats():
@@ -51,19 +51,19 @@ def predictNetTime(mod, dshape, num_core):
     mod.init_optimizer(optimizer='sgd', optimizer_params=(('learning_rate', 0.1),))
 
     if not DEBUG:
-        num_trails = 1000
-        conv_model = prepare.get_trained_model(num_trails, "conv2d", "conv2d_feature")
-        pool_model = prepare.get_trained_model(num_trails, "pooling", "pooling_feature")
-        fc_model = prepare.get_trained_model(num_trails, "fc", "fc_feature")
-        bn_model = prepare.get_trained_model(num_trails, "bn", "bn_feature")
-        operator_models = {
-            "convolution": conv_model,
-            "pooling": pool_model,
-            "fullyconnected": fc_model,
-            "batchnorm": bn_model,
-        }
+        # num_trails = 1000
+        # conv_model = prepare.get_trained_model(num_trails, "conv2d", "conv2d_feature")
+        # pool_model = prepare.get_trained_model(num_trails, "pooling", "pooling_feature")
+        # fc_model = prepare.get_trained_model(num_trails, "fc", "fc_feature")
+        # bn_model = prepare.get_trained_model(num_trails, "bn", "bn_feature")
+        # operator_models = {
+        #     "convolution": conv_model,
+        #     "pooling": pool_model,
+        #     "fullyconnected": fc_model,
+        #     "batchnorm": bn_model,
+        # }
 
-        predict_train_time = prepare.predict_network(mod, operator_models, dshape, num_core)
+        predict_train_time = prepare.predict_network(mod, None, dshape, num_core)
     else: # Perfect prediction
         os.environ['OMP_NUM_THREADS'] = str(num_core)
         # Reimport to make environmental variable work
