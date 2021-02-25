@@ -12,7 +12,8 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import PolynomialFeatures
 from sklearn.preprocessing import StandardScaler
 
-sys.path.append('/home/ec2-user/mxnet-memonger')
+# sys.path.append('/home/ec2-user/mxnet-memonger')
+sys.path.append('/Users/xiaoxuanliu/Documents/UCB/research/mxnet-memonger')
 from util import *
 from ast import literal_eval as make_tuple
 
@@ -73,18 +74,15 @@ def cost_model_predict(name, data):
         backward_t = forward_t * 2
         return forward_t, backward_t
     elif name == "pool":
+        print("+++++", data)
         output_w = int((data['W'] + 2 * data['pad'][0] - data['kernel'][0] + 1) / data['stride'][0])
         output_h = int((data['H'] + 2 * data['pad'][1] - data['kernel'][1] + 1) / data['stride'][1])
-        write_num = output_w * output_h * data['N'] * data['OC']
+        write_num = output_w * output_h * data['N']
         read_num = write_num * data['kernel'][0] * data['kernel'][1] * data['IC']
-        flops = data['H'] * data['W'] * data['kernel'][0] * data['kernel'][1] * data['IC'] * data['OC'] * data['N'] * 2
-        forward_t = C_conv * cost_mode(read_num, write_num, flops)
-        backward_t = forward_t * 2
-
-        # read_num = 0
-        # write_num = 0
-        # flops = 0
-        return 0, 0
+        flops = read_num
+        forward_t = C_pool * cost_mode(read_num, write_num, flops)
+        backward_t = forward_t
+        return forward_t, backward_t
     elif name == "batchnorm":
         write_num = data['N'] * data['C'] * data['H'] * data['W']
         read_num = data['N'] * data['C'] * data['H'] * data['W'] * 2
@@ -221,7 +219,6 @@ def generate_training_data(num_trails, file_name, category, name, cpu_num):
         if name == "conv":
             # 1. generate the operator
             # conv2d
-            print(params)
             params['kernel_value'] = all_params['kernel_value']
             params['stride_value'] = all_params['stride_value']
             params['pad_value'] = all_params['pad_value']
@@ -257,7 +254,7 @@ def generate_training_data(num_trails, file_name, category, name, cpu_num):
 
 
         args = executor.arg_dict
-        print(args.keys())
+        # print(args.keys())
 
         # 1. Generate inputs, outputs
         inputs = []
@@ -416,8 +413,6 @@ def copy_symbol(name, attrs):
     elif name.find("leaky") != -1:
         op = mx.sym.LeakyReLU(data=data, act_type="leaky")  # same memory to our act, less than CuDNN one
     elif name.find("batchnorm") != -1 or name.find("bn") != -1:
-        print("In batchnorm-------")
-        print(attrs)
         op = mx.sym.BatchNorm(data=data, fix_gamma=True)
     elif name.find("pool") != -1:
         op = mx.sym.Pooling(data=data, pool_type=attrs['pool_type'],
@@ -487,10 +482,13 @@ def generate_x(mod, dshape, num_core):
         data['W'] = width
         data['kernel'] = kernel
         data['stride'] = stride
-        data['dilate'] = make_tuple(attrs['dilate'])
-        data['layout'] = attrs['layout']
-        data['pad'] = make_tuple(attrs['dilate'])
-        data['OC'] = int(attrs['num_filter'])
+        if 'pad' in attrs.keys():
+            data['pad'] =  make_tuple(attrs['pad'])
+        else:
+            data['pad'] = (0, 0)
+        # if 'layout' in attrs.keys():
+        #     data['layout'] = attrs['layout']
+        # data['pad'] = make_tuple(attrs['dilate'])
         name = "pool"
         return [[batch_size, height, width, cpu_num, kernel, stride]], data, name
     elif name.find("dense") != -1:
