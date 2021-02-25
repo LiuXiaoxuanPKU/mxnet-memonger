@@ -68,9 +68,17 @@ def cost_model_predict(name, data):
         backward_t = forward_t * 2
         return forward_t, backward_t
     elif name == "pool":
-        read_num = 0
-        write_num = 0
-        flops = 0
+        output_w = int((data['W'] + 2 * data['pad'][0] - data['kernel'][0] + 1) / data['stride'][0])
+        output_h = int((data['H'] + 2 * data['pad'][1] - data['kernel'][1] + 1) / data['stride'][1])
+        write_num = output_w * output_h * data['N'] * data['OC']
+        read_num = write_num * data['kernel'][0] * data['kernel'][1] * data['IC']
+        flops = data['H'] * data['W'] * data['kernel'][0] * data['kernel'][1] * data['IC'] * data['OC'] * data['N'] * 2
+        forward_t = C_conv * cost_mode(read_num, write_num, flops)
+        backward_t = forward_t * 2
+
+        # read_num = 0
+        # write_num = 0
+        # flops = 0
         return 0, 0
     elif name == "batchnorm":
         write_num = data['N'] * data['C'] * data['H'] * data['W']
@@ -464,11 +472,22 @@ def generate_x(mod, dshape, num_core):
         return [[batch_size, height, width, cpu_num]], data, name
 
     elif name.find("pool") != -1:
+        print(attrs)
         # batch_size,height,width,kernel_value,stride_value
-        kernel_value = make_tuple(attrs['kernel'])[0]
-        stride_value = make_tuple(attrs['stride'])[0]
+        kernel = make_tuple(attrs['kernel'])
+        stride = make_tuple(attrs['stride'])
+        data['N'] = batch_size
+        data['IC'] = dshape[1]
+        data['H'] = height
+        data['W'] = width
+        data['kernel'] = kernel
+        data['stride'] = stride
+        data['dilate'] = make_tuple(attrs['dilate'])
+        data['layout'] = attrs['layout']
+        data['pad'] = make_tuple(attrs['dilate'])
+        data['OC'] = int(attrs['num_filter'])
         name = "pool"
-        return [[batch_size, height, width, cpu_num, kernel_value, stride_value]], data, name
+        return [[batch_size, height, width, cpu_num, kernel, stride]], data, name
     elif name.find("dense") != -1:
         # batch_size,height,width,hidden_num
         hidden_num = int(attrs['num_hidden'])

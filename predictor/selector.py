@@ -113,7 +113,7 @@ def getInsMinCost(ins_price, ins_mem, ins_core, T):
         min_ckpt_mod = None
         mem = predictNetMem(cur_ckp_mod)
         print("Predict Memory:", mem)
-        #t, mem = predictNetTime(cur_ckp_mod, dshape, ins_core)
+        t, mem = predictNetTime(cur_ckp_mod, dshape, ins_core)
         #print("Actual Memory:", mem)
 
         if mem > ins_mem:
